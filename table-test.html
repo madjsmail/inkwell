@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Task Table Test</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: #111110;
+      color: #e8e6e1;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      padding: 40px;
+      min-height: 100vh;
+    }
+
+    .wrap { max-width: 860px; margin: 0 auto; }
+
+    .top {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      margin: 0 0 20px;
+    }
+    .top h1 { font-size: 20px; font-weight: 500; color: #e8e6e1; }
+    .top span { font-size: 13px; color: #888780; }
+
+    table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+
+    thead tr { border-bottom: 0.5px solid rgba(255,255,255,0.12); }
+    th {
+      font-size: 11px;
+      font-weight: 500;
+      color: #888780;
+      text-align: left;
+      padding: 0 14px 10px;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+
+    tbody tr {
+      border-bottom: 0.5px solid rgba(255,255,255,0.07);
+      transition: background 0.1s;
+      cursor: pointer;
+    }
+    tbody tr:last-child { border-bottom: none; }
+    tbody tr:hover { background: rgba(255,255,255,0.04); }
+    tbody tr.blocked { background: rgba(226,75,74,0.06); }
+    tbody tr.blocked:hover { background: rgba(226,75,74,0.1); }
+
+    td {
+      padding: 12px 14px;
+      font-size: 14px;
+      color: #e8e6e1;
+      vertical-align: middle;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .fl { display: flex; align-items: center; gap: 8px; }
+
+    .av {
+      width: 26px; height: 26px;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 10px; font-weight: 500; flex-shrink: 0;
+    }
+    .av-A { background: #085041; color: #9FE1CB; }
+    .av-B { background: #0C447C; color: #B5D4F4; }
+    .av-C { background: #3C3489; color: #CECBF6; }
+    .av-D { background: #712B13; color: #F5C4B3; }
+
+    .aname { font-size: 13px; color: #888780; }
+
+    .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .dot-H { background: #E24B4A; }
+    .dot-M { background: #EF9F27; }
+    .dot-L { background: #639922; }
+    .ptext { font-size: 13px; color: #e8e6e1; }
+
+    .badge {
+      display: inline-flex; align-items: center;
+      padding: 3px 10px;
+      border-radius: 100px;
+      font-size: 12px; font-weight: 500;
+      white-space: nowrap;
+    }
+    .b-ns  { background: rgba(136,135,128,0.2); color: #d3d1c7; }
+    .b-ip  { background: rgba(55,138,221,0.2);  color: #85B7EB; }
+    .b-done { background: rgba(99,153,34,0.2);  color: #97C459; }
+    .b-blocked { background: rgba(226,75,74,0.2); color: #F09595; }
+
+    .due      { font-size: 13px; color: #888780; }
+    .due-warn { font-size: 13px; color: #FAC775; font-weight: 500; }
+    .due-err  { font-size: 13px; color: #F09595; font-weight: 500; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="top">
+      <h1>Tasks</h1>
+      <span id="meta"></span>
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th style="width:36%">Task</th>
+          <th style="width:15%">Assignee</th>
+          <th style="width:14%">Priority</th>
+          <th style="width:20%">Status</th>
+          <th style="width:15%">Due</th>
+        </tr>
+      </thead>
+      <tbody id="tbody"></tbody>
+    </table>
+  </div>
+
+  <script>
+    const rows = [
+      { task: 'Fix login page bug',          assignee: 'Alice', priority: 'High',   status: 'In Progress', due: '2026-06-14' },
+      { task: 'Write unit tests for API',    assignee: 'Bob',   priority: 'Medium', status: 'Not Started', due: '2026-06-18' },
+      { task: 'Update README',               assignee: 'Carol', priority: 'Low',    status: 'Complete',    due: '2026-06-10' },
+      { task: 'Code review for PR #42',      assignee: 'Alice', priority: 'High',   status: 'Not Started', due: '2026-06-15' },
+      { task: 'Refactor auth module',        assignee: 'Dave',  priority: 'Medium', status: 'In Progress', due: '2026-06-20' },
+      { task: 'Deploy to production',        assignee: 'Bob',   priority: 'High',   status: 'Blocked',     due: '2026-06-16' },
+      { task: 'Update dependencies',         assignee: 'Carol', priority: 'Low',    status: 'Complete',    due: '2026-06-12' },
+      { task: 'Design new onboarding flow',  assignee: 'Dave',  priority: 'Medium', status: 'Not Started', due: '2026-06-22' },
+    ];
+
+    const avCls  = { Alice: 'av-A', Bob: 'av-B', Carol: 'av-C', Dave: 'av-D' };
+    const avIn   = { Alice: 'AL', Bob: 'BO', Carol: 'CA', Dave: 'DV' };
+    const dotCls = { High: 'dot-H', Medium: 'dot-M', Low: 'dot-L' };
+    const badgeCls = { 'Not Started': 'b-ns', 'In Progress': 'b-ip', Complete: 'b-done', Blocked: 'b-blocked' };
+
+    function fmt(s) {
+      return new Date(s + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    }
+    function dueInfo(s, status) {
+      if (status === 'Complete') return { cls: 'due', txt: fmt(s) };
+      const diff = Math.round((new Date(s + 'T00:00:00') - new Date('2026-06-13')) / 86400000);
+      if (status === 'Blocked')  return { cls: 'due-err',  txt: fmt(s) };
+      if (diff <= 0)             return { cls: 'due-err',  txt: 'Overdue' };
+      if (diff === 1)            return { cls: 'due-warn', txt: 'Tomorrow' };
+      if (diff <= 3)             return { cls: 'due-warn', txt: fmt(s) };
+      return { cls: 'due', txt: fmt(s) };
+    }
+
+    const done = rows.filter(r => r.status === 'Complete').length;
+    document.getElementById('meta').textContent = `${rows.length} tasks · ${done} complete`;
+
+    const tbody = document.getElementById('tbody');
+    rows.forEach(r => {
+      const { cls, txt } = dueInfo(r.due, r.status);
+      const tr = document.createElement('tr');
+      if (r.status === 'Blocked') tr.className = 'blocked';
+      tr.innerHTML = `
+        <td>${r.task}</td>
+        <td><div class="fl"><span class="av ${avCls[r.assignee]}">${avIn[r.assignee]}</span><span class="aname">${r.assignee}</span></div></td>
+        <td><div class="fl"><span class="dot ${dotCls[r.priority]}"></span><span class="ptext">${r.priority}</span></div></td>
+        <td><span class="badge ${badgeCls[r.status]}">${r.status}</span></td>
+        <td><span class="${cls}">${txt}</span></td>
+      `;
+      tbody.appendChild(tr);
+    });
+  </script>
+</body>
+</html>
