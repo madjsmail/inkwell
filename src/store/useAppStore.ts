@@ -25,6 +25,7 @@ import {
   deleteFolderDir,
   renameItem,
   writeNoteMeta,
+  writeBoardsFile,
 } from "../lib/vault";
 
 // ─── First-run welcome content ────────────────────────────────────────────────
@@ -428,6 +429,27 @@ function isFolderInsideDeleted(
   return path?.includes(deletedId) ?? false;
 }
 
+// Write boards immediately after any board mutation.
+// localStorage write is synchronous (survives Tauri WebView reloads and app restarts).
+// Disk write is async but also completes quickly for normal close/reopen.
+function flushBoards(
+  vaultPath: string | null,
+  boards: Board[],
+  boardColumns: BoardColumn[],
+  boardTasks: BoardTask[],
+) {
+  if (!vaultPath) return;
+  const data = { version: 1, boards, boardColumns, boardTasks };
+  // 1. Synchronous localStorage backup (survives hot-reload and Cmd+R)
+  try {
+    localStorage.setItem(`inkwell-boards:${vaultPath}`, JSON.stringify(data));
+  } catch {
+    /* quota exceeded */
+  }
+  // 2. Async disk write (portable across machines)
+  writeBoardsFile(vaultPath, data).catch(console.error);
+}
+
 export const useAppStore = create<AppState>((set, get) => ({
   vaultPath: null,
   folders: [],
@@ -461,6 +483,17 @@ export const useAppStore = create<AppState>((set, get) => ({
   activeBoardTaskId: null,
 
   openVault: (path, data) => {
+    // Flush boards to boards.json before switching vaults
+    const current = get();
+    if (current.vaultPath && current.vaultPath !== path) {
+      flushBoards(
+        current.vaultPath,
+        current.boards,
+        current.boardColumns,
+        current.boardTasks,
+      );
+    }
+
     let folders = data?.folders ?? [];
     // Back-fill linkedItems for notes from older vault files
     let notes = (data?.notes ?? []).map((n) => ({
@@ -1220,6 +1253,8 @@ export const useAppStore = create<AppState>((set, get) => ({
       boardColumns: [...s.boardColumns, ...columns],
       activeBoardId: boardId,
     }));
+    const { vaultPath, boards, boardColumns, boardTasks } = get();
+    flushBoards(vaultPath, boards, boardColumns, boardTasks);
   },
 
   deleteBoard: (id) => {
@@ -1232,6 +1267,8 @@ export const useAppStore = create<AppState>((set, get) => ({
         activeBoardId: remaining[0]?.id ?? null,
       };
     });
+    const { vaultPath, boards, boardColumns, boardTasks } = get();
+    flushBoards(vaultPath, boards, boardColumns, boardTasks);
   },
 
   setActiveBoardId: (id) => set({ activeBoardId: id }),
@@ -1253,6 +1290,8 @@ export const useAppStore = create<AppState>((set, get) => ({
         b.id === boardId ? { ...b, columnIds: [...b.columnIds, colId] } : b,
       ),
     }));
+    const { vaultPath, boards, boardColumns, boardTasks } = get();
+    flushBoards(vaultPath, boards, boardColumns, boardTasks);
   },
 
   renameBoardColumn: (columnId, name) => {
@@ -1261,6 +1300,8 @@ export const useAppStore = create<AppState>((set, get) => ({
         c.id === columnId ? { ...c, name } : c,
       ),
     }));
+    const { vaultPath, boards, boardColumns, boardTasks } = get();
+    flushBoards(vaultPath, boards, boardColumns, boardTasks);
   },
 
   deleteBoardColumn: (columnId) => {
@@ -1277,12 +1318,16 @@ export const useAppStore = create<AppState>((set, get) => ({
         ),
       };
     });
+    const { vaultPath, boards, boardColumns, boardTasks } = get();
+    flushBoards(vaultPath, boards, boardColumns, boardTasks);
   },
 
   reorderBoardColumns: (boardId, columnIds) => {
     set((s) => ({
       boards: s.boards.map((b) => (b.id === boardId ? { ...b, columnIds } : b)),
     }));
+    const { vaultPath, boards, boardColumns, boardTasks } = get();
+    flushBoards(vaultPath, boards, boardColumns, boardTasks);
   },
 
   createBoardTask: (columnId, title, priority = "medium") => {
@@ -1307,6 +1352,8 @@ export const useAppStore = create<AppState>((set, get) => ({
         c.id === columnId ? { ...c, taskIds: [...c.taskIds, taskId] } : c,
       ),
     }));
+    const { vaultPath, boards, boardColumns, boardTasks } = get();
+    flushBoards(vaultPath, boards, boardColumns, boardTasks);
   },
 
   updateBoardTask: (taskId, updates) => {
@@ -1332,6 +1379,8 @@ export const useAppStore = create<AppState>((set, get) => ({
         boardTasks: s.boardTasks.map((t) => (t.id === taskId ? newTask : t)),
       };
     });
+    const { vaultPath, boards, boardColumns, boardTasks } = get();
+    flushBoards(vaultPath, boards, boardColumns, boardTasks);
   },
 
   deleteBoardTask: (taskId) => {
@@ -1347,6 +1396,8 @@ export const useAppStore = create<AppState>((set, get) => ({
         ),
       };
     });
+    const { vaultPath, boards, boardColumns, boardTasks } = get();
+    flushBoards(vaultPath, boards, boardColumns, boardTasks);
   },
 
   addBoardTaskSubtask: (taskId, title) => {
@@ -1356,6 +1407,8 @@ export const useAppStore = create<AppState>((set, get) => ({
         t.id === taskId ? { ...t, subtasks: [...t.subtasks, sub] } : t,
       ),
     }));
+    const { vaultPath, boards, boardColumns, boardTasks } = get();
+    flushBoards(vaultPath, boards, boardColumns, boardTasks);
   },
 
   toggleBoardTaskSubtask: (taskId, subtaskId) => {
@@ -1371,6 +1424,8 @@ export const useAppStore = create<AppState>((set, get) => ({
           : t,
       ),
     }));
+    const { vaultPath, boards, boardColumns, boardTasks } = get();
+    flushBoards(vaultPath, boards, boardColumns, boardTasks);
   },
 
   deleteBoardTaskSubtask: (taskId, subtaskId) => {
@@ -1381,6 +1436,8 @@ export const useAppStore = create<AppState>((set, get) => ({
           : t,
       ),
     }));
+    const { vaultPath, boards, boardColumns, boardTasks } = get();
+    flushBoards(vaultPath, boards, boardColumns, boardTasks);
   },
 
   addBoardTaskComment: (taskId, content) => {
@@ -1398,6 +1455,8 @@ export const useAppStore = create<AppState>((set, get) => ({
           : t,
       ),
     }));
+    const { vaultPath, boards, boardColumns, boardTasks } = get();
+    flushBoards(vaultPath, boards, boardColumns, boardTasks);
   },
 
   moveBoardTask: (taskId, toColumnId, beforeTaskId = null) => {
@@ -1429,5 +1488,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         ),
       };
     });
+    const { vaultPath, boards, boardColumns, boardTasks } = get();
+    flushBoards(vaultPath, boards, boardColumns, boardTasks);
   },
 }));

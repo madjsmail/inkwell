@@ -6,6 +6,7 @@ import {
   addRecentVault,
   getRecentVaults,
   removeRecentVault,
+  writeBoardsFile,
   type RecentVault,
 } from '../../lib/vault'
 import { useAppStore } from '../../store/useAppStore'
@@ -58,6 +59,11 @@ export function VaultPicker() {
     setError(null)
     setLoading(true)
     try {
+      // Flush current vault boards before reading the new one
+      const { vaultPath: currentPath, boards, boardColumns, boardTasks } = useAppStore.getState()
+      if (currentPath && currentPath !== vault.path) {
+        await writeBoardsFile(currentPath, { version: 1, boards, boardColumns, boardTasks })
+      }
       const data = await readVaultFS(vault.path)
       addRecentVault(vault.path)
       setRecentVaults(getRecentVaults())

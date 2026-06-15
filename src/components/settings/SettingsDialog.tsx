@@ -7,7 +7,7 @@ import { THEMES, DARK_THEMES, LIGHT_THEMES, type CustomTheme } from '../../lib/t
 import { ThemeEditor } from './ThemeEditor'
 import {
   pickVaultDirectory, readVaultFS, addRecentVault,
-  getRecentVaults, removeRecentVault, type RecentVault,
+  getRecentVaults, removeRecentVault, writeBoardsFile, type RecentVault,
 } from '../../lib/vault'
 import {
   getGithubToken, setGithubToken, getGithubOwner, setGithubOwner, listRepos, type GhRepo,
@@ -534,6 +534,11 @@ function VaultSection({ onClose }: { onClose: () => void }) {
     setError(null)
     setSwitching(path)
     try {
+      // Flush current vault's boards to disk BEFORE reading the new vault
+      const { vaultPath: currentPath, boards, boardColumns, boardTasks } = useAppStore.getState()
+      if (currentPath && currentPath !== path) {
+        await writeBoardsFile(currentPath, { version: 1, boards, boardColumns, boardTasks })
+      }
       const data = empty ? null : await readVaultFS(path)
       addRecentVault(path)
       openVault(path, data)

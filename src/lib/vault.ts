@@ -37,6 +37,7 @@ const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
 
 const INKWELL_DIR = '.inkwell'
 const APP_DATA_FILE = 'app.json'
+const BOARDS_FILE = 'boards.json'
 const RECENT_KEY = 'inkwell-recent-vaults'
 const LAST_VAULT_KEY = 'inkwell-last-vault'
 
@@ -198,6 +199,18 @@ export async function readVaultFS(vaultPath: string): Promise<VaultData | null> 
   if (migrated) return migrated
 
   const appData = (await readAppData(vaultPath)) ?? emptyAppData()
+  // Board persistence layers (first match wins):
+  //   1. boards.json  — async disk write, portable
+  //   2. localStorage — synchronous write, survives Tauri WebView reloads instantly
+  //   3. app.json     — legacy / debounced fallback
+  const boardsData = await readBoardsFile(vaultPath)
+  const localBoards: { boards: Board[]; boardColumns: BoardColumn[]; boardTasks: BoardTask[] } | null = (() => {
+    if (boardsData) return null // already have disk copy, skip
+    try {
+      const raw = localStorage.getItem(`inkwell-boards:${vaultPath}`)
+      return raw ? JSON.parse(raw) : null
+    } catch { return null }
+  })()
   const { readTextFile } = await import('@tauri-apps/plugin-fs')
 
   let entries: FSEntry[] = []
@@ -242,9 +255,9 @@ export async function readVaultFS(vaultPath: string): Promise<VaultData | null> 
     folders: rootFolders,
     notes: allNotes,
     tasks: appData.tasks,
-    boards: appData.boards,
-    boardColumns: appData.boardColumns,
-    boardTasks: appData.boardTasks,
+    boards: boardsData?.boards ?? localBoards?.boards ?? appData.boards,
+    boardColumns: boardsData?.boardColumns ?? localBoards?.boardColumns ?? appData.boardColumns,
+    boardTasks: boardsData?.boardTasks ?? localBoards?.boardTasks ?? appData.boardTasks,
   }
 }
 
@@ -319,6 +332,37 @@ export async function writeAppData(vaultPath: string, data: AppData): Promise<vo
     if (!await exists(dir)) await mkdir(dir, { recursive: true })
     await writeTextFile(`${dir}/${APP_DATA_FILE}`, JSON.stringify(data, null, 2))
   } catch (e) { console.error('Failed to write app data:', e) }
+}
+
+// ── Board data (boards.json) ──────────────────────────────────────────────────
+
+export interface BoardsData {
+  version: number
+  boards: Board[]
+  boardColumns: BoardColumn[]
+  boardTasks: BoardTask[]
+}
+
+export async function writeBoardsFile(vaultPath: string, data: BoardsData): Promise<void> {
+  if (!isTauri) return
+  try {
+    const { writeTextFile, mkdir, exists } = await import('@tauri-apps/plugin-fs')
+    const dir = `${vaultPath}/${INKWELL_DIR}`
+    if (!await exists(dir)) await mkdir(dir, { recursive: true })
+    await writeTextFile(`${dir}/${BOARDS_FILE}`, JSON.stringify(data, null, 2))
+    // Once safely on disk, the localStorage backup is no longer needed
+    try { localStorage.removeItem(`inkwell-boards:${vaultPath}`) } catch { /* ok */ }
+  } catch (e) { console.error('Failed to write boards:', e) }
+}
+
+export async function readBoardsFile(vaultPath: string): Promise<BoardsData | null> {
+  if (!isTauri) return null
+  try {
+    const { readTextFile, exists } = await import('@tauri-apps/plugin-fs')
+    const filePath = `${vaultPath}/${INKWELL_DIR}/${BOARDS_FILE}`
+    if (!await exists(filePath)) return null
+    return JSON.parse(await readTextFile(filePath)) as BoardsData
+  } catch { return null }
 }
 
 export async function writeNoteMeta(

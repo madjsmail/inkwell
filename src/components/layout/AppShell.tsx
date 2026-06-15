@@ -11,7 +11,7 @@ import { ConfirmDialog } from '../shared/ConfirmDialog'
 import { VaultPicker } from '../shared/VaultPicker'
 import { useAppStore } from '../../store/useAppStore'
 import { confirmDeleteNote, confirmDeleteSelectedNotes, confirmDeleteFolderById } from '../../lib/deleteActions'
-import { readVaultFS, writeAppData, addRecentVault, getLastVaultPath } from '../../lib/vault'
+import { readVaultFS, writeAppData, readAppData, addRecentVault, getLastVaultPath } from '../../lib/vault'
 import type { AppData } from '../../lib/vault'
 
 export function AppShell() {
@@ -76,16 +76,19 @@ export function AppShell() {
     return useAppStore.subscribe((state) => {
       if (!state.vaultPath) return
       if (saveTimer.current) clearTimeout(saveTimer.current)
-      saveTimer.current = setTimeout(() => {
+      saveTimer.current = setTimeout(async () => {
+        const vp = state.vaultPath!
+        // Preserve existing noteMeta — don't clobber it with {}
+        const existing = await readAppData(vp)
         const appData: AppData = {
           version: 1,
           tasks: state.tasks,
           boards: state.boards,
           boardColumns: state.boardColumns,
           boardTasks: state.boardTasks,
-          noteMeta: {}, // noteMeta is written per-note by store actions
+          noteMeta: existing?.noteMeta ?? {},
         }
-        writeAppData(state.vaultPath!, appData)
+        writeAppData(vp, appData)
       }, 800)
     })
   }, [vaultPath])
