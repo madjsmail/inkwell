@@ -11,7 +11,8 @@ import { ConfirmDialog } from '../shared/ConfirmDialog'
 import { VaultPicker } from '../shared/VaultPicker'
 import { useAppStore } from '../../store/useAppStore'
 import { confirmDeleteNote, confirmDeleteSelectedNotes, confirmDeleteFolderById } from '../../lib/deleteActions'
-import { writeVault, readVault, addRecentVault, getLastVaultPath } from '../../lib/vault'
+import { readVaultFS, writeAppData, addRecentVault, getLastVaultPath } from '../../lib/vault'
+import type { AppData } from '../../lib/vault'
 
 export function AppShell() {
   const { activeView, setSearchOpen, vaultPath, openVault, toggleSidebar, sidebarOpen } = useAppStore()
@@ -60,7 +61,7 @@ export function AppShell() {
   useEffect(() => {
     const lastPath = getLastVaultPath()
     if (!lastPath) return
-    readVault(lastPath).then((data) => {
+    readVaultFS(lastPath).then((data) => {
       addRecentVault(lastPath)
       openVault(lastPath, data)
     }).catch(() => {
@@ -69,22 +70,22 @@ export function AppShell() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Auto-save vault data whenever folders/notes/tasks change
+  // Auto-save boards/tasks to .inkwell/app.json (notes are written inline by store actions)
   useEffect(() => {
     if (!vaultPath) return
     return useAppStore.subscribe((state) => {
       if (!state.vaultPath) return
       if (saveTimer.current) clearTimeout(saveTimer.current)
       saveTimer.current = setTimeout(() => {
-        writeVault(state.vaultPath!, {
+        const appData: AppData = {
           version: 1,
-          folders: state.folders,
-          notes: state.notes,
           tasks: state.tasks,
           boards: state.boards,
           boardColumns: state.boardColumns,
           boardTasks: state.boardTasks,
-        })
+          noteMeta: {}, // noteMeta is written per-note by store actions
+        }
+        writeAppData(state.vaultPath!, appData)
       }, 800)
     })
   }, [vaultPath])

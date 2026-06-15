@@ -6,7 +6,7 @@ import { cn } from '../../lib/utils'
 import { THEMES, DARK_THEMES, LIGHT_THEMES, type CustomTheme } from '../../lib/themes'
 import { ThemeEditor } from './ThemeEditor'
 import {
-  pickVaultDirectory, readVault, addRecentVault,
+  pickVaultDirectory, readVaultFS, addRecentVault,
   getRecentVaults, removeRecentVault, type RecentVault,
 } from '../../lib/vault'
 
@@ -523,7 +523,7 @@ function VaultSection({ onClose }: { onClose: () => void }) {
     setError(null)
     setSwitching(path)
     try {
-      const data = empty ? null : await readVault(path)
+      const data = empty ? null : await readVaultFS(path)
       addRecentVault(path)
       openVault(path, data)
       onClose()

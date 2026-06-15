@@ -1,19 +1,63 @@
-import type { Folder, Note, Task, Board, BoardColumn, BoardTask } from '../types'
+/**
+ * vault.ts — filesystem-based storage for inkwell
+ *
+ * Storage layout:
+ *   {vaultPath}/
+ *   ├── .inkwell/
+ *   │   └── app.json          boards, boardColumns, boardTasks, tasks, noteMeta
+ *   ├── some-note.md          note at vault root (folder: null)
+ *   ├── Getting Started/
+ *   │   └── welcome.md
+ *   └── Projects/
+ *       ├── inkwell.md
+ *       └── Research/
+ *           └── notes.md
+ *
+ * Each .md file has YAML frontmatter:
+ *   ---
+ *   id: note-1234567890
+ *   created: 2024-01-15T10:30:00.000Z
+ *   updated: 2024-01-15T11:00:00.000Z
+ *   pinned: false
+ *   tags: []
+ *   ---
+ *
+ *   # Note Title
+ *   ...content...
+ *
+ * Folder IDs = vault-relative path, e.g. "Getting Started" or "Projects/Research"
+ * Note.folder = vault-relative folder path, or null for root notes
+ * Note.path   = absolute path to the .md file
+ */
+
+import type { Folder, Note, Task, Board, BoardColumn, BoardTask, Attachment, LinkedItem } from '../types'
+import { slugifyTitle } from './utils'
 
 const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
 
-const VAULT_FILE = 'inkwell.json'
+const INKWELL_DIR = '.inkwell'
+const APP_DATA_FILE = 'app.json'
 const RECENT_KEY = 'inkwell-recent-vaults'
 const LAST_VAULT_KEY = 'inkwell-last-vault'
 
-export interface VaultData {
+// ── Public types ──────────────────────────────────────────────────────────────
+
+export interface AppData {
   version: number
+  tasks: Task[]
+  boards: Board[]
+  boardColumns: BoardColumn[]
+  boardTasks: BoardTask[]
+  noteMeta: Record<string, { attachments: Attachment[]; linkedItems: LinkedItem[] }>
+}
+
+export interface VaultData {
   folders: Folder[]
   notes: Note[]
   tasks: Task[]
-  boards?: Board[]
-  boardColumns?: BoardColumn[]
-  boardTasks?: BoardTask[]
+  boards: Board[]
+  boardColumns: BoardColumn[]
+  boardTasks: BoardTask[]
 }
 
 export interface RecentVault {
@@ -21,6 +65,362 @@ export interface RecentVault {
   name: string
   lastOpenedAt: string
 }
+
+// ── Frontmatter ───────────────────────────────────────────────────────────────
+
+interface FrontmatterMeta {
+  id: string
+  created: string
+  updated: string
+  pinned: boolean
+  tags: string[]
+}
+
+function parseFrontmatter(raw: string): { meta: Partial<FrontmatterMeta>; body: string } {
+  if (!raw.startsWith('---')) return { meta: {}, body: raw }
+  const end = raw.indexOf('\n---', 3)
+  if (end === -1) return { meta: {}, body: raw }
+
+  const block = raw.slice(4, end).trim()
+  const body = raw.slice(end + 4).replace(/^\n/, '')
+
+  const meta: Partial<FrontmatterMeta> = {}
+  for (const line of block.split('\n')) {
+    const colon = line.indexOf(':')
+    if (colon === -1) continue
+    const key = line.slice(0, colon).trim()
+    const val = line.slice(colon + 1).trim()
+    switch (key) {
+      case 'id':      meta.id      = val; break
+      case 'created': meta.created = val; break
+      case 'updated': meta.updated = val; break
+      case 'pinned':  meta.pinned  = val === 'true'; break
+      case 'tags':
+        meta.tags = val === '[]' ? [] : val.replace(/[\[\]]/g, '').split(',').map(t => t.trim()).filter(Boolean)
+        break
+    }
+  }
+  return { meta, body }
+}
+
+function serializeFrontmatter(meta: FrontmatterMeta, body: string): string {
+  const tagStr = meta.tags.length === 0 ? '[]' : `[${meta.tags.join(', ')}]`
+  return `---\nid: ${meta.id}\ncreated: ${meta.created}\nupdated: ${meta.updated}\npinned: ${meta.pinned}\ntags: ${tagStr}\n---\n\n${body}`
+}
+
+// ── Filesystem helpers ────────────────────────────────────────────────────────
+
+interface FSEntry { name: string; path: string; isDirectory: boolean }
+
+async function listDir(dirPath: string): Promise<FSEntry[]> {
+  const { readDir } = await import('@tauri-apps/plugin-fs')
+  const entries = await readDir(dirPath)
+  return entries
+    .filter(e => e.name != null)
+    .map(e => ({ name: e.name!, path: `${dirPath}/${e.name}`, isDirectory: e.isDirectory }))
+}
+
+function extractTitle(body: string, filename: string): string {
+  const match = body.match(/^#\s+(.+)$/m)
+  if (match) return match[1].trim()
+  return filename.replace(/\.md$/, '').replace(/-/g, ' ')
+}
+
+// ── Vault reading ─────────────────────────────────────────────────────────────
+
+async function readDirectory(
+  dirPath: string,
+  folderRelPath: string,
+  parentId: string | null,
+  appData: AppData,
+): Promise<{ folder: Folder; notes: Note[] }> {
+  const { readTextFile } = await import('@tauri-apps/plugin-fs')
+
+  let entries: FSEntry[] = []
+  try { entries = await listDir(dirPath) } catch { /* empty */ }
+
+  const childFolders: Folder[] = []
+  const folderNotes: Note[] = []
+  const allNotes: Note[] = []
+
+  const dirs  = entries.filter(e => e.isDirectory && !e.name.startsWith('.'))
+  const files = entries.filter(e => !e.isDirectory && e.name.endsWith('.md'))
+
+  for (const dir of dirs) {
+    const childRelPath = `${folderRelPath}/${dir.name}`
+    const { folder: child, notes: childNotes } = await readDirectory(dir.path, childRelPath, folderRelPath, appData)
+    childFolders.push(child)
+    allNotes.push(...childNotes)
+  }
+
+  for (const file of files) {
+    try {
+      const raw = await readTextFile(file.path)
+      const { meta, body } = parseFrontmatter(raw)
+      const id = meta.id ?? `note-${Date.now()}-${Math.random().toString(36).slice(2)}`
+      const noteMeta = appData.noteMeta?.[id] ?? { attachments: [], linkedItems: [] }
+      const note: Note = {
+        id,
+        title: extractTitle(body, file.name),
+        content: body,
+        path: file.path,
+        folder: folderRelPath,
+        tags: meta.tags ?? [],
+        pinned: meta.pinned ?? false,
+        createdAt: meta.created ? new Date(meta.created) : new Date(),
+        updatedAt: meta.updated ? new Date(meta.updated) : new Date(),
+        wordCount: body.trim().split(/\s+/).filter(Boolean).length,
+        attachments: noteMeta.attachments ?? [],
+        linkedItems: noteMeta.linkedItems ?? [],
+      }
+      folderNotes.push(note)
+      allNotes.push(note)
+    } catch { /* skip unreadable */ }
+  }
+
+  const folderName = folderRelPath.split('/').pop()!
+  const folder: Folder = {
+    id: folderRelPath,
+    name: folderName,
+    path: dirPath,
+    parentId,
+    children: childFolders,
+    notes: folderNotes,
+    expanded: true,
+  }
+  return { folder, notes: allNotes }
+}
+
+export async function readVaultFS(vaultPath: string): Promise<VaultData | null> {
+  if (!isTauri) return null
+
+  const migrated = await migrateFromJson(vaultPath)
+  if (migrated) return migrated
+
+  const appData = (await readAppData(vaultPath)) ?? emptyAppData()
+  const { readTextFile } = await import('@tauri-apps/plugin-fs')
+
+  let entries: FSEntry[] = []
+  try { entries = await listDir(vaultPath) } catch { return null }
+
+  const rootFolders: Folder[] = []
+  const allNotes: Note[] = []
+
+  const dirs  = entries.filter(e => e.isDirectory && !e.name.startsWith('.'))
+  const files = entries.filter(e => !e.isDirectory && e.name.endsWith('.md'))
+
+  for (const file of files) {
+    try {
+      const raw = await readTextFile(file.path)
+      const { meta, body } = parseFrontmatter(raw)
+      const id = meta.id ?? `note-${Date.now()}-${Math.random().toString(36).slice(2)}`
+      const noteMeta = appData.noteMeta?.[id] ?? { attachments: [], linkedItems: [] }
+      allNotes.push({
+        id,
+        title: extractTitle(body, file.name),
+        content: body,
+        path: file.path,
+        folder: null,
+        tags: meta.tags ?? [],
+        pinned: meta.pinned ?? false,
+        createdAt: meta.created ? new Date(meta.created) : new Date(),
+        updatedAt: meta.updated ? new Date(meta.updated) : new Date(),
+        wordCount: body.trim().split(/\s+/).filter(Boolean).length,
+        attachments: noteMeta.attachments ?? [],
+        linkedItems: noteMeta.linkedItems ?? [],
+      })
+    } catch { /* skip */ }
+  }
+
+  for (const dir of dirs) {
+    const { folder, notes: childNotes } = await readDirectory(dir.path, dir.name, null, appData)
+    rootFolders.push(folder)
+    allNotes.push(...childNotes)
+  }
+
+  return {
+    folders: rootFolders,
+    notes: allNotes,
+    tasks: appData.tasks,
+    boards: appData.boards,
+    boardColumns: appData.boardColumns,
+    boardTasks: appData.boardTasks,
+  }
+}
+
+// ── Note file writes ──────────────────────────────────────────────────────────
+
+export async function writeNoteFile(note: Note): Promise<void> {
+  if (!isTauri) return
+  const { writeTextFile, mkdir, exists } = await import('@tauri-apps/plugin-fs')
+  const parent = note.path.substring(0, note.path.lastIndexOf('/'))
+  if (parent && !await exists(parent)) await mkdir(parent, { recursive: true })
+  const meta: FrontmatterMeta = {
+    id: note.id,
+    created: note.createdAt.toISOString(),
+    updated: note.updatedAt.toISOString(),
+    pinned: note.pinned,
+    tags: note.tags,
+  }
+  await writeTextFile(note.path, serializeFrontmatter(meta, note.content))
+}
+
+export async function deleteNoteFile(absolutePath: string): Promise<void> {
+  if (!isTauri) return
+  try {
+    const { remove } = await import('@tauri-apps/plugin-fs')
+    await remove(absolutePath)
+  } catch { /* already gone */ }
+}
+
+// ── Folder operations ─────────────────────────────────────────────────────────
+
+export async function createFolderDir(absolutePath: string): Promise<void> {
+  if (!isTauri) return
+  const { mkdir } = await import('@tauri-apps/plugin-fs')
+  await mkdir(absolutePath, { recursive: true })
+}
+
+export async function deleteFolderDir(absolutePath: string): Promise<void> {
+  if (!isTauri) return
+  try {
+    const { remove } = await import('@tauri-apps/plugin-fs')
+    await remove(absolutePath, { recursive: true })
+  } catch { /* ok */ }
+}
+
+export async function renameItem(oldPath: string, newPath: string): Promise<void> {
+  if (!isTauri) return
+  const { rename } = await import('@tauri-apps/plugin-fs')
+  await rename(oldPath, newPath)
+}
+
+// ── App data ──────────────────────────────────────────────────────────────────
+
+function emptyAppData(): AppData {
+  return { version: 1, tasks: [], boards: [], boardColumns: [], boardTasks: [], noteMeta: {} }
+}
+
+export async function readAppData(vaultPath: string): Promise<AppData | null> {
+  if (!isTauri) return null
+  try {
+    const { readTextFile, exists } = await import('@tauri-apps/plugin-fs')
+    const filePath = `${vaultPath}/${INKWELL_DIR}/${APP_DATA_FILE}`
+    if (!await exists(filePath)) return null
+    return JSON.parse(await readTextFile(filePath)) as AppData
+  } catch { return null }
+}
+
+export async function writeAppData(vaultPath: string, data: AppData): Promise<void> {
+  if (!isTauri) return
+  try {
+    const { writeTextFile, mkdir, exists } = await import('@tauri-apps/plugin-fs')
+    const dir = `${vaultPath}/${INKWELL_DIR}`
+    if (!await exists(dir)) await mkdir(dir, { recursive: true })
+    await writeTextFile(`${dir}/${APP_DATA_FILE}`, JSON.stringify(data, null, 2))
+  } catch (e) { console.error('Failed to write app data:', e) }
+}
+
+export async function writeNoteMeta(
+  vaultPath: string,
+  noteId: string,
+  meta: { attachments: Attachment[]; linkedItems: LinkedItem[] }
+): Promise<void> {
+  const current = (await readAppData(vaultPath)) ?? emptyAppData()
+  current.noteMeta = { ...current.noteMeta, [noteId]: meta }
+  await writeAppData(vaultPath, current)
+}
+
+// ── Migration from inkwell.json ───────────────────────────────────────────────
+
+function reviveDates(key: string, value: unknown): unknown {
+  if (typeof value === 'string' && (key === 'createdAt' || key === 'updatedAt' || key === 'dueDate')) {
+    const d = new Date(value)
+    return isNaN(d.getTime()) ? value : d
+  }
+  return value
+}
+
+function findFolderRelPath(folders: Folder[], folderId: string, prefix = ''): string | null {
+  for (const f of folders) {
+    const rel = prefix ? `${prefix}/${f.name}` : f.name
+    if (f.id === folderId) return rel
+    const found = findFolderRelPath(f.children, folderId, rel)
+    if (found) return found
+  }
+  return null
+}
+
+function flattenFolders(folders: Folder[]): Folder[] {
+  return folders.flatMap(f => [f, ...flattenFolders(f.children)])
+}
+
+async function migrateFromJson(vaultPath: string): Promise<VaultData | null> {
+  if (!isTauri) return null
+  try {
+    const { readTextFile, exists, writeTextFile, mkdir, rename } = await import('@tauri-apps/plugin-fs')
+    const jsonPath = `${vaultPath}/inkwell.json`
+    if (!await exists(jsonPath)) return null
+
+    console.log('[inkwell] Migrating from inkwell.json…')
+    const legacy = JSON.parse(await readTextFile(jsonPath), reviveDates) as {
+      folders: Folder[]
+      notes: Note[]
+      tasks: Task[]
+      boards?: Board[]
+      boardColumns?: BoardColumn[]
+      boardTasks?: BoardTask[]
+    }
+
+    for (const folder of flattenFolders(legacy.folders)) {
+      const relPath = findFolderRelPath(legacy.folders, folder.id)
+      if (relPath) await mkdir(`${vaultPath}/${relPath}`, { recursive: true })
+    }
+
+    for (const note of legacy.notes) {
+      const folderRelPath = note.folder ? findFolderRelPath(legacy.folders, note.folder) : null
+      const dir = folderRelPath ? `${vaultPath}/${folderRelPath}` : vaultPath
+      await mkdir(dir, { recursive: true })
+      const filename = `${slugifyTitle(note.title) || 'untitled'}.md`
+      const meta: FrontmatterMeta = {
+        id: note.id,
+        created: (note.createdAt instanceof Date ? note.createdAt : new Date(note.createdAt)).toISOString(),
+        updated: (note.updatedAt instanceof Date ? note.updatedAt : new Date(note.updatedAt)).toISOString(),
+        pinned: note.pinned,
+        tags: note.tags,
+      }
+      await writeTextFile(`${dir}/${filename}`, serializeFrontmatter(meta, note.content))
+    }
+
+    const noteMeta: AppData['noteMeta'] = {}
+    for (const note of legacy.notes) {
+      if (note.attachments?.length || note.linkedItems?.length) {
+        noteMeta[note.id] = { attachments: note.attachments ?? [], linkedItems: note.linkedItems ?? [] }
+      }
+    }
+
+    const inkwellDir = `${vaultPath}/${INKWELL_DIR}`
+    if (!await exists(inkwellDir)) await mkdir(inkwellDir, { recursive: true })
+    const appData: AppData = {
+      version: 1,
+      tasks: legacy.tasks ?? [],
+      boards: legacy.boards ?? [],
+      boardColumns: legacy.boardColumns ?? [],
+      boardTasks: legacy.boardTasks ?? [],
+      noteMeta,
+    }
+    await writeTextFile(`${inkwellDir}/${APP_DATA_FILE}`, JSON.stringify(appData, null, 2))
+    await rename(jsonPath, `${inkwellDir}/inkwell.json.bak`)
+
+    console.log('[inkwell] Migration complete.')
+    return readVaultFS(vaultPath)
+  } catch (e) {
+    console.error('[inkwell] Migration failed:', e)
+    return null
+  }
+}
+
+// ── Recent vaults ─────────────────────────────────────────────────────────────
 
 export async function pickVaultDirectory(): Promise<string | null> {
   if (!isTauri) return null
@@ -30,63 +430,25 @@ export async function pickVaultDirectory(): Promise<string | null> {
   return null
 }
 
-function reviveDates(key: string, value: unknown): unknown {
-  if (typeof value === 'string' && (key === 'createdAt' || key === 'updatedAt' || key === 'dueDate' || key === 'lastOpenedAt')) {
-    const d = new Date(value)
-    return isNaN(d.getTime()) ? value : d
-  }
-  return value
-}
-
-export async function readVault(vaultPath: string): Promise<VaultData | null> {
-  if (!isTauri) return null
-  try {
-    const { readTextFile, exists } = await import('@tauri-apps/plugin-fs')
-    const filePath = `${vaultPath}/${VAULT_FILE}`
-    const fileExists = await exists(filePath)
-    if (!fileExists) return null
-    const json = await readTextFile(filePath)
-    return JSON.parse(json, reviveDates) as VaultData
-  } catch (e) {
-    console.error('Failed to read vault:', e)
-    return null
-  }
-}
-
-export async function writeVault(vaultPath: string, data: VaultData): Promise<void> {
-  if (!isTauri) return
-  try {
-    const { writeTextFile } = await import('@tauri-apps/plugin-fs')
-    const filePath = `${vaultPath}/${VAULT_FILE}`
-    await writeTextFile(filePath, JSON.stringify(data, null, 2))
-  } catch (e) {
-    console.error('Failed to write vault:', e)
-  }
-}
-
 export function getRecentVaults(): RecentVault[] {
   try {
     const raw = localStorage.getItem(RECENT_KEY)
     return raw ? (JSON.parse(raw) as RecentVault[]) : []
-  } catch {
-    return []
-  }
+  } catch { return [] }
 }
 
 export function addRecentVault(path: string): void {
   const name = path.split('/').pop() ?? path
-  const vaults = getRecentVaults().filter((v) => v.path !== path)
+  const vaults = getRecentVaults().filter(v => v.path !== path)
   vaults.unshift({ path, name, lastOpenedAt: new Date().toISOString() })
   localStorage.setItem(RECENT_KEY, JSON.stringify(vaults.slice(0, 8)))
   localStorage.setItem(LAST_VAULT_KEY, path)
 }
 
 export function removeRecentVault(path: string): void {
-  const vaults = getRecentVaults().filter((v) => v.path !== path)
+  const vaults = getRecentVaults().filter(v => v.path !== path)
   localStorage.setItem(RECENT_KEY, JSON.stringify(vaults))
-  if (localStorage.getItem(LAST_VAULT_KEY) === path) {
-    localStorage.removeItem(LAST_VAULT_KEY)
-  }
+  if (localStorage.getItem(LAST_VAULT_KEY) === path) localStorage.removeItem(LAST_VAULT_KEY)
 }
 
 export function getLastVaultPath(): string | null {

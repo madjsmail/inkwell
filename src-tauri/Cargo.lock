@@ -1723,7 +1723,7 @@ dependencies = [
 
 [[package]]
 name = "inkwell"
-version = "0.1.0"
+version = "0.3.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -1735,6 +1735,14 @@ dependencies = [
  "tauri-plugin-shell",
  "time",
  "window-vibrancy 0.7.1",
+]
+
+[[package]]
+name = "inkwell-mcp"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

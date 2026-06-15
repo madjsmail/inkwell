@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { FolderOpen, Plus, Clock, X, ChevronRight } from 'lucide-react'
 import {
   pickVaultDirectory,
-  readVault,
+  readVaultFS,
   addRecentVault,
   getRecentVaults,
   removeRecentVault,
@@ -27,7 +27,7 @@ export function VaultPicker() {
     try {
       const path = await pickVaultDirectory()
       if (!path) return
-      const data = await readVault(path)
+      const data = await readVaultFS(path)
       addRecentVault(path)
       openVault(path, data)
     } catch (e) {
@@ -58,7 +58,7 @@ export function VaultPicker() {
     setError(null)
     setLoading(true)
     try {
-      const data = await readVault(vault.path)
+      const data = await readVaultFS(vault.path)
       addRecentVault(vault.path)
       setRecentVaults(getRecentVaults())
       openVault(vault.path, data)
