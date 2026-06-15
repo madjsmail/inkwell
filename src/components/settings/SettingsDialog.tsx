@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
-import { Settings, X, Palette, Sun, Moon, Type, Folder, FolderOpen, Info, ChevronRight, Check, Plus, Pencil, Trash2 } from 'lucide-react'
+import { Settings, X, Palette, Sun, Moon, Type, Folder, FolderOpen, Info, ChevronRight, Check, Plus, Pencil, Trash2, GitBranch, Eye, EyeOff, ExternalLink } from 'lucide-react'
 import { useAppStore } from '../../store/useAppStore'
 import { cn } from '../../lib/utils'
 import { THEMES, DARK_THEMES, LIGHT_THEMES, type CustomTheme } from '../../lib/themes'
@@ -9,10 +9,13 @@ import {
   pickVaultDirectory, readVaultFS, addRecentVault,
   getRecentVaults, removeRecentVault, type RecentVault,
 } from '../../lib/vault'
+import {
+  getGithubToken, setGithubToken, getGithubOwner, setGithubOwner, listRepos, type GhRepo,
+} from '../../lib/github'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type Section = 'themes' | 'appearance' | 'editor' | 'vault' | 'about'
+type Section = 'themes' | 'appearance' | 'editor' | 'vault' | 'github' | 'about'
 
 // ─── Font options ─────────────────────────────────────────────────────────────
 
@@ -45,6 +48,7 @@ const NAV_ITEMS: Array<{ id: Section; label: string; icon: React.FC<{ className?
   { id: 'appearance', label: 'Appearance', icon: Sun },
   { id: 'editor', label: 'Editor', icon: Type },
   { id: 'vault', label: 'Vaults', icon: Folder },
+  { id: 'github', label: 'GitHub', icon: GitBranch },
   { id: 'about', label: 'About', icon: Info },
 ]
 
@@ -373,6 +377,11 @@ export function SettingsDialog() {
                 <VaultSection onClose={() => setOpen(false)} />
               )}
 
+              {/* ── GitHub ── */}
+              {section === 'github' && (
+                <GitBranchSection />
+              )}
+
               {/* ── About ── */}
               {section === 'about' && (
                 <div className="flex flex-col gap-4">
@@ -663,6 +672,174 @@ function VaultSection({ onClose }: { onClose: () => void }) {
           <span className="w-1 h-1 rounded-full bg-red-400 shrink-0" />
           {error}
         </p>
+      )}
+    </div>
+  )
+}
+
+// ─── GitBranchSection ───────────────────────────────────────────────────────────
+
+function GitBranchSection() {
+  const [token, setToken] = useState(() => getGithubToken())
+  const [owner, setOwner] = useState(() => getGithubOwner())
+  const [showToken, setShowToken] = useState(false)
+  const [repos, setRepos] = useState<GhRepo[]>([])
+  const [testing, setTesting] = useState(false)
+  const [status, setStatus] = useState<{ ok: boolean; msg: string } | null>(null)
+
+  const handleSave = () => {
+    setGithubToken(token.trim())
+    setGithubOwner(owner.trim())
+    setStatus({ ok: true, msg: 'Saved.' })
+    setTimeout(() => setStatus(null), 2000)
+  }
+
+  const handleTest = async () => {
+    setTesting(true)
+    setStatus(null)
+    setRepos([])
+    try {
+      setGithubToken(token.trim())
+      setGithubOwner(owner.trim())
+      const result = await listRepos(10)
+      setRepos(result)
+      setStatus({ ok: true, msg: `Connected — ${result.length} repos found.` })
+    } catch (e) {
+      setStatus({ ok: false, msg: e instanceof Error ? e.message : 'Connection failed.' })
+    } finally {
+      setTesting(false)
+    }
+  }
+
+  return (
+    <div className="space-y-5">
+
+      {/* Token */}
+      <div className="space-y-1.5">
+        <label className="text-[10px] font-semibold uppercase tracking-wider text-tertiary flex items-center gap-1.5">
+          Personal Access Token
+          <a
+            href="https://github.com/settings/tokens/new?scopes=repo&description=inkwell"
+            target="_blank"
+            rel="noreferrer"
+            className="text-accent hover:underline flex items-center gap-0.5"
+          >
+            <ExternalLink className="w-2.5 h-2.5" />
+            Classic PAT (recommended)
+          </a>
+          <span className="text-border">·</span>
+          <a
+            href="https://github.com/settings/personal-access-tokens/new"
+            target="_blank"
+            rel="noreferrer"
+            className="text-muted-foreground hover:text-foreground hover:underline flex items-center gap-0.5"
+          >
+            <ExternalLink className="w-2.5 h-2.5" />
+            Fine-grained
+          </a>
+        </label>
+        <div className="relative">
+          <input
+            type={showToken ? 'text' : 'password'}
+            value={token}
+            onChange={e => setToken(e.target.value)}
+            placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"
+            className={cn(
+              'w-full px-3 py-2 pr-9 rounded-lg text-xs bg-surface border border-border',
+              'text-foreground placeholder:text-tertiary',
+              'focus:outline-none focus:border-accent/50 transition-colors font-mono',
+            )}
+          />
+          <button
+            type="button"
+            onClick={() => setShowToken(v => !v)}
+            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+          >
+            {showToken ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+          </button>
+        </div>
+        <p className="text-[10px] text-tertiary">
+          Classic PAT: enable <code className="bg-surface px-1 py-0.5 rounded">repo</code> scope.{' '}
+          Fine-grained PAT: set <code className="bg-surface px-1 py-0.5 rounded">Contents → Read and write</code> under Repository permissions.
+          Stored locally, never synced.
+        </p>
+      </div>
+
+      {/* Default owner */}
+      <div className="space-y-1.5">
+        <label className="text-[10px] font-semibold uppercase tracking-wider text-tertiary">
+          Default Owner / Username
+        </label>
+        <input
+          type="text"
+          value={owner}
+          onChange={e => setOwner(e.target.value)}
+          placeholder="your-github-username"
+          className={cn(
+            'w-full px-3 py-2 rounded-lg text-xs bg-surface border border-border',
+            'text-foreground placeholder:text-tertiary',
+            'focus:outline-none focus:border-accent/50 transition-colors',
+          )}
+        />
+        <p className="text-[10px] text-tertiary">Used when no owner is specified during sync.</p>
+      </div>
+
+      {/* Actions */}
+      <div className="flex items-center gap-2">
+        <button
+          onClick={handleSave}
+          className={cn(
+            'px-3 py-1.5 rounded-lg text-xs font-medium transition-colors',
+            'bg-accent text-white hover:opacity-90',
+          )}
+        >
+          Save
+        </button>
+        <button
+          onClick={handleTest}
+          disabled={testing || !token.trim()}
+          className={cn(
+            'px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors',
+            'border-border text-muted-foreground hover:text-foreground hover:border-accent/50',
+            (testing || !token.trim()) && 'opacity-40 pointer-events-none',
+          )}
+        >
+          {testing ? 'Testing…' : 'Test connection'}
+        </button>
+        {status && (
+          <span className={cn('text-xs', status.ok ? 'text-green-400' : 'text-red-400')}>
+            {status.msg}
+          </span>
+        )}
+      </div>
+
+      {/* Repo list preview */}
+      {repos.length > 0 && (
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-tertiary mb-2">Your repositories</p>
+          <div className="rounded-lg border border-border overflow-hidden">
+            {repos.map((repo, i) => (
+              <div
+                key={repo.full_name}
+                className={cn(
+                  'flex items-center gap-2.5 px-3 py-2 text-xs',
+                  i > 0 && 'border-t border-border',
+                )}
+              >
+                <GitBranch className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                <span className="flex-1 text-foreground font-medium truncate">{repo.full_name}</span>
+                <span className={cn(
+                  'text-[10px] px-1.5 py-0.5 rounded border',
+                  repo.private
+                    ? 'text-tertiary border-border'
+                    : 'text-accent/70 border-accent/20',
+                )}>
+                  {repo.private ? 'private' : 'public'}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
       )}
     </div>
   )

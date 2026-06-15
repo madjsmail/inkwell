@@ -4,7 +4,7 @@
   <h1>inkwell</h1>
   <p>A focused, beautiful markdown note-taking app for macOS.</p>
 
-  ![Version](https://img.shields.io/badge/version-0.1.0-orange?style=flat-square)
+  ![Version](https://img.shields.io/badge/version-0.3.0-orange?style=flat-square)
   ![Platform](https://img.shields.io/badge/platform-macOS-black?style=flat-square)
   ![License](https://img.shields.io/badge/license-MIT-orange?style=flat-square&color=c47d2e)
 </div>
@@ -15,7 +15,7 @@
 
 inkwell is a local-first markdown editor built as a native macOS desktop app. Notes are stored as plain `.md` files in a vault folder you own — no cloud, no accounts, no lock-in.
 
-It pairs a distraction-free writing environment with a rich live preview, a Kanban board, and a suite of themes that make long writing sessions comfortable.
+It pairs a distraction-free writing environment with a rich live preview, a Kanban board, a suite of themes, and deep integrations: a native MCP server so Claude can read and write your notes, and built-in GitHub sync to push your docs to any repository.
 
 ---
 
@@ -28,8 +28,10 @@ It pairs a distraction-free writing environment with a rich live preview, a Kanb
 - Inline code, blockquotes, ==highlights==, and embedded images
 
 **Organisation**
-- Vault-based storage — notes live as real `.md` files on disk
-- Nested folders with drag-and-drop reordering
+- Vault-based storage — notes live as real `.md` files on disk (Obsidian-compatible)
+- Nested folders that map 1:1 to real filesystem directories
+- YAML frontmatter on every note (`id`, `created`, `updated`, `pinned`, `tags`)
+- Automatic migration from legacy JSON storage on first open
 - Kanban board view with columns, cards, due dates, and subtasks
 - Full-text search across all notes (⌘K)
 - Starred / favourites and trash with soft-delete
@@ -43,6 +45,18 @@ It pairs a distraction-free writing environment with a rich live preview, a Kanb
 - Export notes as Markdown, standalone HTML, or PDF
 - Live preview before exporting
 - One-click copy to clipboard
+
+**GitHub Sync** *(new in v0.3)*
+- Connect your GitHub account once in Settings → GitHub
+- Push any note directly to a repository as a `.md` file
+- Pull the latest version of a file back into inkwell with one click
+- Works with any repo — great for keeping project READMEs and docs in sync
+
+**Claude MCP Integration** *(new in v0.3)*
+- A native Rust MCP server ships inside the app (`inkwell-mcp`)
+- Exposes `list_notes`, `read_note`, `create_note`, `update_note`, `search_notes` tools
+- Claude can read, write, and search your vault directly — no copy-paste
+- Notes written by Claude land as proper `.md` files with YAML frontmatter
 
 **macOS**
 - Native window with overlay title bar
@@ -62,6 +76,7 @@ It pairs a distraction-free writing environment with a rich live preview, a Kanb
 | State | Zustand |
 | Markdown | react-markdown + remark-gfm + rehype-highlight |
 | Drag & drop | @dnd-kit/core |
+| MCP server | Rust (stdio JSON-RPC 2.0) |
 | Build | Vite |
 
 ---
@@ -97,6 +112,28 @@ The output `.app` and `.dmg` are written to `src-tauri/target/release/bundle/mac
 
 To update an existing installation, drag the new `.app` onto the old one in `/Applications` and click **Replace**.
 
+### Build the MCP server
+
+```bash
+cd src-tauri
+cargo build --release -p inkwell-mcp
+```
+
+Then add it to your Claude Desktop config (`~/Library/Application Support/Claude/claude_desktop_config.json`):
+
+```json
+{
+  "mcpServers": {
+    "inkwell": {
+      "command": "/path/to/inkwell-mcp",
+      "env": {
+        "INKWELL_VAULT_PATH": "/path/to/your/vault"
+      }
+    }
+  }
+}
+```
+
 ---
 
 ## Project Structure
@@ -109,14 +146,15 @@ inkwell/
 │   │   ├── layout/       # AppShell, Sidebar, NoteList, EditorPane
 │   │   ├── board/        # Kanban BoardView, KanbanColumn, TaskCard
 │   │   ├── settings/     # SettingsDialog, ThemeEditor
-│   │   └── shared/       # Search, dialogs, context menus
+│   │   └── shared/       # Search, dialogs, GitHubSyncDialog
 │   ├── store/            # Zustand store (useAppStore)
-│   ├── lib/              # Vault I/O, export, themes, utilities
+│   ├── lib/              # vault.ts, github.ts, export.ts, themes, utils
 │   ├── styles/           # globals.css — CSS variables & theme definitions
 │   └── types/            # TypeScript interfaces
 └── src-tauri/
-    ├── src/lib.rs        # Tauri commands (vibrancy, etc.)
-    └── tauri.conf.json   # Window config, permissions
+    ├── src/lib.rs         # Tauri commands (vibrancy, etc.)
+    ├── mcp-server/        # inkwell-mcp — Rust MCP server for Claude
+    └── tauri.conf.json    # Window config, permissions
 ```
 
 ---

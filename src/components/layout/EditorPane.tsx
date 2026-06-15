@@ -7,8 +7,10 @@ import {
   Link2,
   Paperclip,
   Plus,
+  GitBranch,
 } from "lucide-react";
 import { ShareDialog } from "../editor/ShareDialog";
+import { GitHubSyncDialog } from "../shared/GitHubSyncDialog";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAppStore } from "../../store/useAppStore";
 import {
@@ -64,6 +66,9 @@ export function EditorPane() {
 
   // ── Media panel ───────────────────────────────────────────────────────────
   const [mediaOpen, setMediaOpen] = useState(false);
+
+  // ── GitHub sync dialog ────────────────────────────────────────────────────
+  const [githubSyncOpen, setGithubSyncOpen] = useState(false);
 
   // ── In-note search ────────────────────────────────────────────────────────
   const [searchOpen, setSearchOpen] = useState(false);
@@ -326,6 +331,14 @@ export function EditorPane() {
 
             <ShareDialog note={note} />
 
+            <button
+              className="w-7 h-7 flex items-center justify-center rounded text-muted-foreground hover:text-foreground transition-colors"
+              onClick={() => setGithubSyncOpen(true)}
+              title="Sync with GitHub"
+            >
+              <GitBranch className="w-4 h-4" />
+            </button>
+
             <button className="w-7 h-7 flex items-center justify-center rounded text-muted-foreground hover:text-foreground transition-colors">
               <MoreHorizontal className="w-4 h-4" />
             </button>
@@ -385,6 +398,12 @@ export function EditorPane() {
       {mediaOpen && (
         <MediaPanel noteId={note.id} onClose={() => setMediaOpen(false)} />
       )}
+
+      <GitHubSyncDialog
+        open={githubSyncOpen}
+        onClose={() => setGithubSyncOpen(false)}
+        noteId={note.id}
+      />
     </div>
   );
 }
