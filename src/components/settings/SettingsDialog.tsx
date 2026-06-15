@@ -386,12 +386,14 @@ export function SettingsDialog() {
               {section === 'about' && (
                 <div className="flex flex-col gap-4">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-accent/10 flex items-center justify-center text-lg">
-                      ✒️
-                    </div>
+                    <img
+                      src="/inkwell-icon.svg"
+                      alt="inkwell"
+                      className="w-14 h-14 rounded-2xl shadow-md"
+                    />
                     <div>
                       <p className="text-sm font-semibold text-foreground">inkwell</p>
-                      <p className="text-xs text-muted-foreground">Version 0.1.0</p>
+                      <p className="text-xs text-muted-foreground">Version 0.4.1</p>
                     </div>
                   </div>
 
