@@ -9,6 +9,7 @@ import { saveNote } from '../../lib/fs'
 import { markdownHighlighting, slashCommandCompletion, highlightMarkPlugin, tablePlugin, createFileEmbedPlugin } from '../../lib/editorExtensions'
 import { searchHighlightExtension } from '../../lib/searchHighlightExtension'
 import { useEditorViewRef } from './EditorViewContext'
+import { deleteAttachmentFile } from '../../lib/attachments'
 
 interface MarkdownEditorProps {
   noteId: string
@@ -19,7 +20,7 @@ export function MarkdownEditor({ noteId, content }: MarkdownEditorProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const viewRef = useEditorViewRef()
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const { updateNote, setSaveStatus, theme, vaultPath, editorFontSize, editorFontFamily, editorLineHeight } = useAppStore()
+  const { updateNote, setSaveStatus, theme, vaultPath, editorFontSize, editorFontFamily, editorLineHeight, removeAttachment } = useAppStore()
 
   const editorFontStyles = {
     fontFamily: editorFontFamily,
@@ -128,6 +129,17 @@ export function MarkdownEditor({ noteId, content }: MarkdownEditorProps) {
       },
     })
 
+    // Called by the embed widget's trash button: remove the attachment from the
+    // note's list and delete the file from disk.
+    const handleRemoveEmbed = (relativePath: string) => {
+      const note = useAppStore.getState().notes.find(n => n.id === noteId)
+      const att = note?.attachments?.find(a => a.path === relativePath)
+      if (att) {
+        removeAttachment(noteId, att.id)
+        if (vaultPath) deleteAttachmentFile(vaultPath, att).catch(console.error)
+      }
+    }
+
     const state = EditorState.create({
       doc: content,
       extensions: [
@@ -137,7 +149,7 @@ export function MarkdownEditor({ noteId, content }: MarkdownEditorProps) {
         markdownHighlighting,
         highlightMarkPlugin,
         tablePlugin,
-        createFileEmbedPlugin(vaultPath ?? ''),
+        createFileEmbedPlugin(vaultPath ?? '', handleRemoveEmbed),
         slashCommandCompletion,
         EditorView.lineWrapping,
         ...searchHighlightExtension,

@@ -7,6 +7,7 @@ import {
   pickAndCopyAttachment,
   openAttachment,
   deleteAttachmentFile,
+  makeAttachmentMarkdown,
 } from '../../lib/attachments'
 import { cn } from '../../lib/utils'
 
@@ -58,13 +59,20 @@ function MediaItem({
   vaultPath: string
   noteId: string
 }) {
-  const { removeAttachment } = useAppStore()
+  const { removeAttachment, updateNote } = useAppStore()
   const [hovered, setHovered] = useState(false)
 
   const handleOpen = () => openAttachment(vaultPath, attachment)
   const handleDelete = async () => {
     removeAttachment(noteId, attachment.id)
     await deleteAttachmentFile(vaultPath, attachment)
+    // Also remove the embed syntax from the note content
+    const currentNote = useAppStore.getState().notes.find(n => n.id === noteId)
+    if (currentNote) {
+      const escaped = attachment.path.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+      const re = new RegExp(`!\\[\\[${escaped}[^\\]]*\\]\\]\\n?`, 'g')
+      updateNote(noteId, currentNote.content.replace(re, ''))
+    }
   }
 
   return (
@@ -134,7 +142,7 @@ interface MediaPanelProps {
 }
 
 export function MediaPanel({ noteId, onClose }: MediaPanelProps) {
-  const { notes, vaultPath, addAttachment } = useAppStore()
+  const { notes, vaultPath, addAttachment, updateNote } = useAppStore()
   const note = notes.find(n => n.id === noteId)
   const attachments: Attachment[] = note?.attachments ?? []
 
@@ -151,7 +159,16 @@ export function MediaPanel({ noteId, onClose }: MediaPanelProps) {
     setAdding(true)
     try {
       const att = await pickAndCopyAttachment(vaultPath)
-      if (att) addAttachment(noteId, att)
+      if (att) {
+        addAttachment(noteId, att)
+        // Also insert the embed syntax at the end of the note content
+        const currentNote = useAppStore.getState().notes.find(n => n.id === noteId)
+        if (currentNote) {
+          const embed = makeAttachmentMarkdown(att)
+          const newContent = currentNote.content.trimEnd() + '\n\n' + embed + '\n'
+          updateNote(noteId, newContent)
+        }
+      }
     } finally {
       setAdding(false)
     }

@@ -48,6 +48,7 @@ const SLASH_COMMANDS = [
   { label: '/divider', displayLabel: 'Divider', detail: '--- Horizontal rule', apply: '---\n' },
   { label: '/bold', displayLabel: 'Bold', detail: '**bold text**', apply: '****', boost: -1 },
   { label: '/italic', displayLabel: 'Italic', detail: '*italic text*', apply: '**', boost: -1 },
+  { label: '/video', displayLabel: 'Video Embed', detail: 'YouTube / Vimeo / Loom', apply: '__VIDEO_URL__' },
 ]
 
 function slashCompletion(context: CompletionContext): CompletionResult | null {
@@ -68,6 +69,18 @@ function slashCompletion(context: CompletionContext): CompletionResult | null {
       detail: cmd.detail,
       boost: (cmd as any).boost,
       apply: (view: EditorView, _completion: unknown, slashFrom: number, slashTo: number) => {
+        if (cmd.apply === '__VIDEO_URL__') {
+          // Insert on its own line, select "URL" so the user can paste immediately
+          const line = view.state.doc.lineAt(slashFrom)
+          const needsLeading = slashFrom !== line.from || line.text.trim().length > 0
+          const prefix = needsLeading ? '\n' : ''
+          const placeholder = 'https://'
+          view.dispatch({
+            changes: { from: slashFrom, to: slashTo, insert: prefix + placeholder + '\n' },
+            selection: { anchor: slashFrom + prefix.length, head: slashFrom + prefix.length + placeholder.length },
+          })
+          return
+        }
         view.dispatch({ changes: { from: slashFrom, to: slashTo, insert: cmd.apply } })
         if (cmd.apply === '```\n\n```') {
           view.dispatch({ selection: { anchor: slashFrom + 4 } })
@@ -365,17 +378,20 @@ class FileEmbedWidget extends WidgetType {
     readonly displayName: string,
     readonly sizeBytes: number,
     readonly type: 'image' | 'pdf' | 'video' | 'other',
+    readonly relativePath: string,
+    readonly onRemove: (relativePath: string) => void,
   ) { super() }
 
   eq(other: FileEmbedWidget) {
     return (
       other.fullPath === this.fullPath &&
       other.displayName === this.displayName &&
-      other.sizeBytes === this.sizeBytes
+      other.sizeBytes === this.sizeBytes &&
+      other.relativePath === this.relativePath
     )
   }
 
-  toDOM() {
+  toDOM(view: EditorView) {
     const outer = document.createElement('div')
     outer.setAttribute('data-cm-embed', 'file')
     outer.style.cssText = [
@@ -430,7 +446,45 @@ class FileEmbedWidget extends WidgetType {
     ].join(';')
     chevronEl.textContent = '▼'
 
-    header.append(iconEl, nameEl, sizeEl, chevronEl)
+    // ── Trash button ──
+    const trashBtn = document.createElement('button')
+    trashBtn.title = 'Remove from note and list'
+    trashBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>`
+    trashBtn.style.cssText = [
+      'display:flex',
+      'align-items:center',
+      'justify-content:center',
+      'flex-shrink:0',
+      'background:none',
+      'border:none',
+      'cursor:pointer',
+      'padding:2px',
+      'border-radius:3px',
+      'color:hsl(var(--muted-foreground))',
+      'opacity:0',
+      'transition:opacity 0.15s, color 0.15s',
+      'line-height:1',
+    ].join(';')
+    trashBtn.addEventListener('mouseenter', () => { trashBtn.style.color = 'hsl(var(--destructive, 0 72% 51%))' })
+    trashBtn.addEventListener('mouseleave', () => { trashBtn.style.color = 'hsl(var(--muted-foreground))' })
+    outer.addEventListener('mouseenter', () => { trashBtn.style.opacity = '1' })
+    outer.addEventListener('mouseleave', () => { trashBtn.style.opacity = '0' })
+    trashBtn.addEventListener('mousedown', e => {
+      e.preventDefault()
+      e.stopPropagation()
+      // Remove the ![[...]] syntax from the document by searching for it
+      const escaped = this.relativePath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+      const re = new RegExp(`!\\[\\[${escaped}[^\\]]*\\]\\]`)
+      const docText = view.state.doc.toString()
+      const m = re.exec(docText)
+      if (m) {
+        view.dispatch({ changes: { from: m.index, to: m.index + m[0].length, insert: '' } })
+      }
+      // Remove from attachment list + disk
+      this.onRemove(this.relativePath)
+    })
+
+    header.append(iconEl, nameEl, sizeEl, trashBtn, chevronEl)
     outer.appendChild(header)
 
     // ── Preview area (created lazily on expand) ──
@@ -536,7 +590,14 @@ class FileEmbedWidget extends WidgetType {
           video.controls = true
           video.style.cssText = 'display:block;width:100%;max-height:400px;background:#000'
           this.previewEl.appendChild(video)
-          resolveUrl().then(url => { video.src = url }) // videos work fine via asset://
+          // WKWebView blocks asset:// in <video> — use base64 data URL like PDF
+          const ext = this.relativePath.split('.').pop()?.toLowerCase() ?? 'mp4'
+          const videoMime =
+            ext === 'webm' ? 'video/webm' :
+            ext === 'mov'  ? 'video/quicktime' :
+            ext === 'avi'  ? 'video/x-msvideo' :
+            'video/mp4'
+          resolveUrl(videoMime).then(url => { video.src = url })
 
         } else {
           // Generic: open externally
@@ -591,7 +652,11 @@ class FileEmbedWidget extends WidgetType {
   ignoreEvent() { return false }
 }
 
-function buildFileEmbedDecorations(view: EditorView, vaultPath: string): DecorationSet {
+function buildFileEmbedDecorations(
+  view: EditorView,
+  vaultPath: string,
+  onRemove: (relativePath: string) => void = () => {},
+): DecorationSet {
   const widgets: Range<Decoration>[] = []
   const { doc } = view.state
 
@@ -615,7 +680,7 @@ function buildFileEmbedDecorations(view: EditorView, vaultPath: string): Decorat
 
       widgets.push(
         Decoration.replace({
-          widget: new FileEmbedWidget(fullPath, displayName, sizeBytes, type),
+          widget: new FileEmbedWidget(fullPath, displayName, sizeBytes, type, relativePath, onRemove),
           inclusive: false,
         }).range(matchFrom, matchTo)
       )
@@ -626,16 +691,19 @@ function buildFileEmbedDecorations(view: EditorView, vaultPath: string): Decorat
 }
 
 /** Factory — call once per EditorState with the current vaultPath. */
-export function createFileEmbedPlugin(vaultPath: string) {
+export function createFileEmbedPlugin(
+  vaultPath: string,
+  onRemove: (relativePath: string) => void = () => {},
+) {
   return ViewPlugin.fromClass(
     class {
       decorations: DecorationSet
       constructor(view: EditorView) {
-        this.decorations = buildFileEmbedDecorations(view, vaultPath)
+        this.decorations = buildFileEmbedDecorations(view, vaultPath, onRemove)
       }
       update(update: ViewUpdate) {
         if (update.docChanged || update.viewportChanged) {
-          this.decorations = buildFileEmbedDecorations(update.view, vaultPath)
+          this.decorations = buildFileEmbedDecorations(update.view, vaultPath, onRemove)
         }
       }
     },
