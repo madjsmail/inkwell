@@ -46,6 +46,16 @@ export function extractTitleFromContent(content: string): string {
   return 'Untitled'
 }
 
+/** Convert Uint8Array → base64 string without stack-overflowing on large files. */
+export function uint8ToBase64(bytes: Uint8Array): string {
+  let str = ''
+  const chunk = 8192
+  for (let i = 0; i < bytes.length; i += chunk) {
+    str += String.fromCharCode(...bytes.subarray(i, i + chunk))
+  }
+  return btoa(str)
+}
+
 export function slugifyTitle(title: string): string {
   const slug = title
     .toLowerCase()

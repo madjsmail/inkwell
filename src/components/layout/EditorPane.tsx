@@ -45,6 +45,7 @@ export function EditorPane() {
     renameNote,
     sidebarOpen,
     toggleSidebar,
+    vaultPath,
   } = useAppStore();
 
   const primaryNoteId = lastSelectedNoteId ?? selectedNoteIds[0] ?? null;
@@ -329,7 +330,7 @@ export function EditorPane() {
               <Trash2 className="w-4 h-4" />
             </button>
 
-            <ShareDialog note={note} />
+            <ShareDialog note={note} vaultPath={vaultPath ?? undefined} />
 
             <button
               className="w-7 h-7 flex items-center justify-center rounded text-muted-foreground hover:text-foreground transition-colors"

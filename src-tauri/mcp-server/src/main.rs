@@ -14,7 +14,9 @@
 ///   update_note     — overwrite an existing note
 ///   search_notes    — find notes containing a query string
 ///
-/// The vault path is supplied via INKWELL_VAULT_PATH env var.
+/// Vault path resolution (in priority order):
+///   1. ~/.inkwell/active-vault  — written by the app on every vault open (always current)
+///   2. INKWELL_VAULT_PATH env var — static fallback from Claude Desktop config
 ///
 /// Note format: each .md file has YAML frontmatter (id, created, updated, pinned, tags).
 /// The MCP server strips frontmatter before returning content to Claude, and preserves
@@ -123,8 +125,16 @@ fn tools_list() -> Value {
     json!({
         "tools": [
             {
+                "name": "get_vault_info",
+                "description": "ALWAYS call this first before any other tool. Returns the currently active vault name and absolute path so you can confirm to the user exactly where notes will be read from or written to. Never assume which vault is active — always verify.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {}
+                }
+            },
+            {
                 "name": "list_notes",
-                "description": "List all notes in the inkwell vault. Returns note names and relative paths. Use this before reading or searching.",
+                "description": "List all notes in the currently active inkwell vault. Call get_vault_info first so you know which vault you are listing. Returns note names and relative paths.",
                 "inputSchema": {
                     "type": "object",
                     "properties": {
@@ -137,7 +147,7 @@ fn tools_list() -> Value {
             },
             {
                 "name": "read_note",
-                "description": "Read the full content of a note from the vault.",
+                "description": "Read the full content of a note from the active vault. Call get_vault_info first to confirm the vault, then tell the user which vault you are reading from.",
                 "inputSchema": {
                     "type": "object",
                     "required": ["path"],
@@ -151,14 +161,14 @@ fn tools_list() -> Value {
             },
             {
                 "name": "create_note",
-                "description": "Create a new note in the vault. Creates parent folders as needed.",
+                "description": "Create a new note. Path rules: (1) If the user gave an absolute path (starts with '/'), use it exactly as given — do NOT join it to the vault root. (2) If the user gave a relative path or no path, join it to the active vault from get_vault_info. Always call get_vault_info first when no explicit absolute path was given, and confirm the destination with the user before writing.",
                 "inputSchema": {
                     "type": "object",
                     "required": ["path", "content"],
                     "properties": {
                         "path": {
                             "type": "string",
-                            "description": "Relative path for the new note, e.g. 'projects/inkwell.md'"
+                            "description": "Absolute path (e.g. '/Users/me/Desktop/vault/note.md') OR relative path within the active vault (e.g. 'ideas/note.md'). Absolute paths are used as-is; relative paths are joined to the vault root."
                         },
                         "content": {
                             "type": "string",
@@ -169,14 +179,14 @@ fn tools_list() -> Value {
             },
             {
                 "name": "update_note",
-                "description": "Overwrite an existing note with new content.",
+                "description": "Overwrite an existing note. Same path rules as create_note: absolute paths are used as-is, relative paths are joined to the active vault. Call get_vault_info first when path is relative.",
                 "inputSchema": {
                     "type": "object",
                     "required": ["path", "content"],
                     "properties": {
                         "path": {
                             "type": "string",
-                            "description": "Relative path to the note to update"
+                            "description": "Absolute or relative path to the note to update"
                         },
                         "content": {
                             "type": "string",
@@ -187,7 +197,7 @@ fn tools_list() -> Value {
             },
             {
                 "name": "search_notes",
-                "description": "Search for notes containing a query string. Returns matching file names and the lines that matched.",
+                "description": "Search for notes containing a query string in the active vault. Returns matching file names and the lines that matched.",
                 "inputSchema": {
                     "type": "object",
                     "required": ["query"],
@@ -203,7 +213,46 @@ fn tools_list() -> Value {
     })
 }
 
+// ── Path resolution ───────────────────────────────────────────────────────────
+
+/// Resolve a note path:
+///   - Absolute path (starts with '/') → used as-is, ignores vault root.
+///   - Relative path → joined to the vault root.
+///
+/// This lets users say "create a note at /Users/me/Desktop/note.md" and have
+/// it land exactly there, while bare names like "ideas/note.md" still go into
+/// the active vault.
+fn resolve_note_path(vault: &Path, path: &str) -> PathBuf {
+    let p = Path::new(path);
+    if p.is_absolute() {
+        p.to_path_buf()
+    } else {
+        vault.join(path)
+    }
+}
+
 // ── Tool handlers ─────────────────────────────────────────────────────────────
+
+fn handle_get_vault_info(vault: &Path) -> Value {
+    let vault_name = vault
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("unknown");
+    let vault_path = vault.to_string_lossy();
+
+    // Count notes so Claude has a quick sense of vault size
+    let mut notes: Vec<String> = Vec::new();
+    collect_md_files(vault, vault, &mut notes);
+
+    text_content(format!(
+        "Active vault\n\
+         Name: {vault_name}\n\
+         Path: {vault_path}\n\
+         Notes: {} .md file(s)\n\n\
+         All operations (create, read, update, list, search) will use this vault.",
+        notes.len()
+    ))
+}
 
 fn handle_list_notes(vault: &Path, args: &Value) -> Value {
     let subfolder = args.get("folder").and_then(|v| v.as_str()).unwrap_or("");
@@ -250,30 +299,31 @@ fn handle_read_note(vault: &Path, args: &Value) -> Value {
     let Some(rel_path) = args.get("path").and_then(|v| v.as_str()) else {
         return error_content("Missing required argument: path");
     };
-    let full_path = vault.join(rel_path);
+    let full_path = resolve_note_path(vault, rel_path);
     match fs::read_to_string(&full_path) {
         Ok(raw) => {
             let body = strip_frontmatter(&raw);
-            text_content(format!("# {rel_path}\n\n{body}"))
+            text_content(format!("# {}\n\n{body}", full_path.display()))
         }
-        Err(e) => error_content(format!("Could not read '{rel_path}': {e}")),
+        Err(e) => error_content(format!("Could not read '{}': {e}", full_path.display())),
     }
 }
 
 fn handle_create_note(vault: &Path, args: &Value) -> Value {
-    let (Some(rel_path), Some(content)) = (
+    let (Some(note_path), Some(content)) = (
         args.get("path").and_then(|v| v.as_str()),
         args.get("content").and_then(|v| v.as_str()),
     ) else {
         return error_content("Missing required arguments: path, content");
     };
 
-    let full_path = vault.join(rel_path);
+    let full_path = resolve_note_path(vault, note_path);
 
     // Don't overwrite existing notes
     if full_path.exists() {
         return error_content(format!(
-            "'{rel_path}' already exists. Use update_note to overwrite."
+            "'{}' already exists. Use update_note to overwrite.",
+            full_path.display()
         ));
     }
 
@@ -289,9 +339,7 @@ fn handle_create_note(vault: &Path, args: &Value) -> Value {
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default()
         .as_secs();
-    // Simple ID: hex timestamp (good enough — app reconciles on next open)
     let note_id = format!("{now_secs:x}");
-    // ISO 8601 date string (UTC, without chrono dependency)
     let ts = format_timestamp(now_secs);
 
     let file_content = format!(
@@ -299,8 +347,8 @@ fn handle_create_note(vault: &Path, args: &Value) -> Value {
     );
 
     match fs::write(&full_path, &file_content) {
-        Ok(_) => text_content(format!("Created note: {rel_path}")),
-        Err(e) => error_content(format!("Could not write '{rel_path}': {e}")),
+        Ok(_) => text_content(format!("Created note at: {}", full_path.display())),
+        Err(e) => error_content(format!("Could not write '{}': {e}", full_path.display())),
     }
 }
 
@@ -330,18 +378,19 @@ fn format_timestamp(secs: u64) -> String {
 }
 
 fn handle_update_note(vault: &Path, args: &Value) -> Value {
-    let (Some(rel_path), Some(new_body)) = (
+    let (Some(note_path), Some(new_body)) = (
         args.get("path").and_then(|v| v.as_str()),
         args.get("content").and_then(|v| v.as_str()),
     ) else {
         return error_content("Missing required arguments: path, content");
     };
 
-    let full_path = vault.join(rel_path);
+    let full_path = resolve_note_path(vault, note_path);
 
     if !full_path.exists() {
         return error_content(format!(
-            "'{rel_path}' does not exist. Use create_note to create it."
+            "'{}' does not exist. Use create_note to create it.",
+            full_path.display()
         ));
     }
 
@@ -350,8 +399,8 @@ fn handle_update_note(vault: &Path, args: &Value) -> Value {
     let file_content = rebuild_with_body(&existing_raw, new_body);
 
     match fs::write(&full_path, &file_content) {
-        Ok(_) => text_content(format!("Updated note: {rel_path}")),
-        Err(e) => error_content(format!("Could not write '{rel_path}': {e}")),
+        Ok(_) => text_content(format!("Updated note at: {}", full_path.display())),
+        Err(e) => error_content(format!("Could not write '{}': {e}", full_path.display())),
     }
 }
 
@@ -397,9 +446,42 @@ fn handle_search_notes(vault: &Path, args: &Value) -> Value {
     ))
 }
 
+// ── Vault resolution ──────────────────────────────────────────────────────────
+
+/// Return the currently active vault path.
+///
+/// Priority:
+///   1. ~/.inkwell/active-vault (written by the app on every vault open)
+///   2. INKWELL_VAULT_PATH env var (static fallback)
+fn resolve_vault(fallback: Option<&PathBuf>) -> Result<PathBuf, String> {
+    // Try ~/.inkwell/active-vault first
+    if let Some(home) = std::env::var_os("HOME") {
+        let state_file = PathBuf::from(home).join(".inkwell").join("active-vault");
+        if let Ok(contents) = fs::read_to_string(&state_file) {
+            let p = PathBuf::from(contents.trim());
+            if p.exists() {
+                eprintln!("[inkwell-mcp] vault from active-vault file: {}", p.display());
+                return Ok(p);
+            } else {
+                eprintln!("[inkwell-mcp] active-vault file points to missing path: {}", p.display());
+            }
+        }
+    }
+
+    // Fall back to the static env var / startup path
+    if let Some(p) = fallback {
+        if p.exists() {
+            eprintln!("[inkwell-mcp] vault from env var: {}", p.display());
+            return Ok(p.clone());
+        }
+    }
+
+    Err("No valid vault path found. Open a vault in Inkwell first.".to_string())
+}
+
 // ── Request dispatcher ────────────────────────────────────────────────────────
 
-fn handle(request: Request, vault: &Path) -> Option<Response> {
+fn handle(request: Request, fallback_vault: Option<&PathBuf>) -> Option<Response> {
     let id = request.id.clone().unwrap_or(Value::Null);
     let params = request.params.unwrap_or(json!({}));
 
@@ -422,15 +504,23 @@ fn handle(request: Request, vault: &Path) -> Option<Response> {
 
         // ── Tool execution ───────────────────────────────────────────────────
         "tools/call" => {
+            // Resolve vault on every call so switching vaults in the app is
+            // immediately reflected without restarting the MCP server.
+            let vault = match resolve_vault(fallback_vault) {
+                Ok(p) => p,
+                Err(e) => return Some(Response::ok(id, error_content(e))),
+            };
+
             let tool_name = params.get("name").and_then(|v| v.as_str()).unwrap_or("");
             let args = params.get("arguments").cloned().unwrap_or(json!({}));
 
             let result = match tool_name {
-                "list_notes"   => handle_list_notes(vault, &args),
-                "read_note"    => handle_read_note(vault, &args),
-                "create_note"  => handle_create_note(vault, &args),
-                "update_note"  => handle_update_note(vault, &args),
-                "search_notes" => handle_search_notes(vault, &args),
+                "get_vault_info" => handle_get_vault_info(&vault),
+                "list_notes"     => handle_list_notes(&vault, &args),
+                "read_note"      => handle_read_note(&vault, &args),
+                "create_note"    => handle_create_note(&vault, &args),
+                "update_note"    => handle_update_note(&vault, &args),
+                "search_notes"   => handle_search_notes(&vault, &args),
                 unknown => error_content(format!("Unknown tool: {unknown}")),
             };
 
@@ -448,21 +538,18 @@ fn handle(request: Request, vault: &Path) -> Option<Response> {
 // ── Entry point ───────────────────────────────────────────────────────────────
 
 fn main() {
-    // Vault path comes from env var — set in Claude Desktop config
-    let vault_path: PathBuf = match std::env::var("INKWELL_VAULT_PATH") {
-        Ok(p) => PathBuf::from(p),
-        Err(_) => {
-            eprintln!("[inkwell-mcp] ERROR: INKWELL_VAULT_PATH env var is required");
-            std::process::exit(1);
-        }
-    };
+    // Optional static fallback — used only when ~/.inkwell/active-vault doesn't exist.
+    // If neither is set the server still starts; it will return a clear error on
+    // tool calls until the user opens a vault in the app.
+    let fallback_vault: Option<PathBuf> = std::env::var("INKWELL_VAULT_PATH")
+        .ok()
+        .map(PathBuf::from)
+        .filter(|p| p.exists());
 
-    if !vault_path.exists() {
-        eprintln!("[inkwell-mcp] ERROR: vault path does not exist: {}", vault_path.display());
-        std::process::exit(1);
-    }
-
-    eprintln!("[inkwell-mcp] started — vault: {}", vault_path.display());
+    eprintln!(
+        "[inkwell-mcp] started — fallback vault: {}",
+        fallback_vault.as_deref().map(|p| p.display().to_string()).unwrap_or_else(|| "(none)".into())
+    );
 
     let stdin = io::stdin();
     let stdout = io::stdout();
@@ -487,7 +574,7 @@ fn main() {
         eprintln!("[inkwell-mcp] ← {}", request.method);
 
         // Dispatch and optionally respond
-        if let Some(response) = handle(request, &vault_path) {
+        if let Some(response) = handle(request, fallback_vault.as_ref()) {
             let json = serde_json::to_string(&response).unwrap();
             eprintln!("[inkwell-mcp] → response sent");
             writeln!(stdout, "{json}").unwrap();

@@ -14,9 +14,24 @@ import { formatFileSize } from '../../lib/attachments'
 const FILE_EMBED_RE = /!\[\[([^\]|]+?)(?:\|([^\]|]*))?(?:\|(\d+))?\]\]/g
 const isTauriEnv = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
 
+// ─── Export mode context ─────────────────────────────────────────────────────
+// When true, video embeds render as thumbnail+link and PDFs as download links,
+// because file:// pages block cross-origin iframes and data: URL iframes.
+const ExportModeContext = React.createContext(false)
+
+// ─── Preload context ─────────────────────────────────────────────────────────
+// Maps absolute file path → base64 data URL.
+// Provided by ShareDialog before capture so all media is synchronously available.
+export const PreloadContext = React.createContext<ReadonlyMap<string, string>>(new Map())
+
 // ─── Video URL detection ─────────────────────────────────────────────────────
 
-type VideoEmbed = { platform: 'youtube' | 'vimeo' | 'loom'; embedUrl: string; thumbUrl?: string }
+type VideoEmbed = {
+  platform: 'youtube' | 'vimeo' | 'loom'
+  embedUrl: string
+  watchUrl: string
+  thumbUrl?: string
+}
 
 function getVideoEmbed(url: string): VideoEmbed | null {
   if (!url) return null
@@ -29,6 +44,7 @@ function getVideoEmbed(url: string): VideoEmbed | null {
       return {
         platform: 'youtube',
         embedUrl: `https://www.youtube.com/embed/${yt[1]}?rel=0`,
+        watchUrl: `https://www.youtube.com/watch?v=${yt[1]}`,
         thumbUrl: `https://img.youtube.com/vi/${yt[1]}/hqdefault.jpg`,
       }
     }
@@ -38,6 +54,7 @@ function getVideoEmbed(url: string): VideoEmbed | null {
       return {
         platform: 'vimeo',
         embedUrl: `https://player.vimeo.com/video/${vm[1]}?dnt=1`,
+        watchUrl: `https://vimeo.com/${vm[1]}`,
       }
     }
     // Loom
@@ -46,16 +63,61 @@ function getVideoEmbed(url: string): VideoEmbed | null {
       return {
         platform: 'loom',
         embedUrl: `https://www.loom.com/embed/${lm[1]}`,
+        watchUrl: `https://www.loom.com/share/${lm[1]}`,
       }
     }
   } catch { /* ignore */ }
   return null
 }
 
+// YouTube play-button SVG (matches YouTube's brand icon)
+const YT_PLAY_SVG = (
+  <svg xmlns="http://www.w3.org/2000/svg" width="64" height="45" viewBox="0 0 68 48">
+    <path d="M66.5 7.7c-.8-2.9-2.9-5.1-5.8-5.8C55.8 0 34 0 34 0S12.2 0 7.3 1.9c-2.9.7-5 2.9-5.8 5.8C-.7 12.7 0 24 0 24s-.7 11.3 1.5 16.3c.8 2.9 2.9 5.1 5.8 5.8C12.2 48 34 48 34 48s21.8 0 26.7-1.9c2.9-.7 5-2.9 5.8-5.8C68 35.3 68 24 68 24s.7-11.3-1.5-16.3z" fill="#ff0000" fillOpacity="0.9"/>
+    <path d="M27 34l18-10-18-10z" fill="#fff"/>
+  </svg>
+)
+
 function VideoEmbedPlayer({ embed }: { embed: VideoEmbed }) {
+  const forExport = React.useContext(ExportModeContext)
   const label =
     embed.platform === 'youtube' ? 'YouTube' :
     embed.platform === 'vimeo'   ? 'Vimeo'   : 'Loom'
+
+  // In exported HTML, file:// origin causes iframes to be blocked by YouTube/Vimeo/Loom.
+  // Render a clickable thumbnail that opens the video in a browser tab instead.
+  if (forExport) {
+    return (
+      <div className="my-4 not-prose">
+        <a
+          href={embed.watchUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{ display: 'block', textDecoration: 'none', borderRadius: '8px', overflow: 'hidden', border: '1px solid hsl(var(--border))' }}
+        >
+          {embed.thumbUrl ? (
+            <div style={{ position: 'relative', paddingBottom: '56.25%', background: '#000' }}>
+              <img
+                src={embed.thumbUrl}
+                alt={`${label} video thumbnail`}
+                style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', opacity: 0.85 }}
+              />
+              <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                {YT_PLAY_SVG}
+              </div>
+            </div>
+          ) : (
+            <div style={{ padding: '24px', background: '#111', textAlign: 'center', color: '#888' }}>
+              ▶ {label} video
+            </div>
+          )}
+          <div style={{ padding: '8px 12px', fontSize: '12px', color: 'hsl(var(--muted-foreground))', background: 'hsl(var(--surface))' }}>
+            ▶ Watch on {label} ↗
+          </div>
+        </a>
+      </div>
+    )
+  }
 
   return (
     <div className="my-4 not-prose">
@@ -145,23 +207,48 @@ function PreviewFileEmbed({
   sizeBytes,
   vaultPath,
   noteId,
+  defaultExpanded = false,
 }: {
   relativePath: string
   displayName: string
   sizeBytes: number
   vaultPath: string | null
   noteId?: string
+  defaultExpanded?: boolean
 }) {
-  const [expanded, setExpanded] = useState(false)
-  const [pdfUrl, setPdfUrl] = useState<string | null>(null)
-  const [imgUrl, setImgUrl] = useState<string | null>(null)
-  const [videoUrl, setVideoUrl] = useState<string | null>(null)
-
   const ext = relativePath.split('.').pop()?.toLowerCase() ?? ''
   const type = embedFileType(ext)
   const fullPath = vaultPath ? `${vaultPath}/${relativePath}` : relativePath
 
-  // Load PDF as base64 data URL (bypasses asset:// iframe restriction in WKWebView)
+  // Preloaded data from ShareDialog (synchronous — ready before mount)
+  const preloads = React.useContext(PreloadContext)
+  const preloaded = preloads.get(fullPath) ?? null
+
+  const [expanded, setExpanded] = useState(defaultExpanded)
+  // Initialise from preloaded data so there's no async gap during export capture
+  const [pdfUrl, setPdfUrl] = useState<string | null>(
+    preloaded?.startsWith('data:application/pdf') ? preloaded : null
+  )
+  const [imgUrl, setImgUrl] = useState<string | null>(
+    preloaded?.startsWith('data:image') ? preloaded : null
+  )
+  const [videoUrl, setVideoUrl] = useState<string | null>(
+    preloaded?.startsWith('data:video') ? preloaded : null
+  )
+
+  // Sync state if preloads arrive after mount (context updates after async load)
+  useEffect(() => {
+    if (!preloaded) return
+    if (preloaded.startsWith('data:application/pdf') && !pdfUrl) setPdfUrl(preloaded)
+    else if (preloaded.startsWith('data:image') && !imgUrl) setImgUrl(preloaded)
+    else if (preloaded.startsWith('data:video') && !videoUrl) setVideoUrl(preloaded)
+  }, [preloaded]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // All local media uses base64 data URLs so they work both in Tauri preview
+  // AND in exported HTML files opened in a regular browser.
+  // These effects are skipped when preloaded data is already available.
+
+  // PDF → base64 (asset:// is blocked inside iframes in WKWebView)
   useEffect(() => {
     if (!expanded || type !== 'pdf' || pdfUrl || !isTauriEnv) return
     import('@tauri-apps/plugin-fs')
@@ -173,15 +260,25 @@ function PreviewFileEmbed({
       .catch(console.error)
   }, [expanded, fullPath, type, pdfUrl])
 
-  // Images: convertFileSrc works fine in <img> tags
+  // Image → base64 (asset:// URLs are Tauri-only; data: URLs work everywhere)
   useEffect(() => {
     if (!expanded || type !== 'image' || imgUrl || !isTauriEnv) return
-    import('@tauri-apps/api/core')
-      .then(({ convertFileSrc }) => setImgUrl(convertFileSrc(fullPath)))
+    const mimeMap: Record<string, string> = {
+      png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg',
+      gif: 'image/gif', webp: 'image/webp', svg: 'image/svg+xml',
+      avif: 'image/avif', bmp: 'image/bmp',
+    }
+    const mime = mimeMap[ext] ?? 'image/jpeg'
+    import('@tauri-apps/plugin-fs')
+      .then(({ readFile }) => readFile(fullPath))
+      .then(bytes => {
+        const b64 = uint8ToBase64(new Uint8Array(bytes))
+        setImgUrl(`data:${mime};base64,${b64}`)
+      })
       .catch(console.error)
-  }, [expanded, fullPath, type, imgUrl])
+  }, [expanded, fullPath, type, ext, imgUrl])
 
-  // Video: WKWebView blocks asset:// inside <video> — use base64 like PDF
+  // Video → base64 (asset:// is blocked inside <video> in WKWebView)
   useEffect(() => {
     if (!expanded || type !== 'video' || videoUrl || !isTauriEnv) return
     const mime =
@@ -265,7 +362,19 @@ function PreviewFileEmbed({
         <div className="border-t border-border">
           {type === 'pdf' && (
             pdfUrl
-              ? <iframe src={pdfUrl} className="w-full block border-none" style={{ height: 560 }} title={displayName} />
+              ? (
+                  // Chrome blocks data: URL iframes from file:// pages.
+                  // In export mode (defaultExpanded=true) show a download link instead.
+                  defaultExpanded
+                    ? <div className="flex items-center gap-3 px-4 py-4">
+                        <span className="text-2xl">📄</span>
+                        <a href={pdfUrl} download={displayName}
+                           className="text-sm text-accent underline underline-offset-2 hover:opacity-80">
+                          ⬇ Download {displayName}
+                        </a>
+                      </div>
+                    : <iframe src={pdfUrl} className="w-full block border-none" style={{ height: 560 }} title={displayName} />
+                )
               : <div className="flex items-center justify-center h-16 text-sm text-muted-foreground">Loading PDF…</div>
           )}
           {type === 'image' && (
@@ -308,6 +417,8 @@ interface RichPreviewProps {
   noteId?: string
   searchQuery?: string
   searchMatchIndex?: number
+  /** When true, all file embeds start expanded and use base64 for portability (used by HTML/PDF export) */
+  forExport?: boolean
 }
 
 // Module-level cache: absPath → data URL. Persists across re-renders and note switches.
@@ -341,10 +452,20 @@ function ExternalImage({ src, alt }: { src: string; alt: string }) {
 
 /** Renders a local image by reading it via plugin-fs and converting to a data URL. */
 function LocalImage({ absPath, alt }: { absPath: string; alt: string }) {
-  const [dataSrc, setDataSrc] = useState(() => imageCache.get(absPath) ?? '')
+  const preloads = React.useContext(PreloadContext)
+  // Prefer preloaded data (synchronous, from ShareDialog), then module cache, then empty
+  const [dataSrc, setDataSrc] = useState(
+    () => preloads.get(absPath) ?? imageCache.get(absPath) ?? ''
+  )
+
+  // Sync with preload context if it populates after mount
+  useEffect(() => {
+    const pre = preloads.get(absPath)
+    if (pre && pre !== dataSrc) setDataSrc(pre)
+  }, [preloads, absPath, dataSrc])
 
   useEffect(() => {
-    if (!isTauriEnv || imageCache.has(absPath)) return
+    if (!isTauriEnv || dataSrc) return
     import('@tauri-apps/plugin-fs')
       .then(({ readFile }) => readFile(absPath))
       .then(bytes => {
@@ -357,7 +478,7 @@ function LocalImage({ absPath, alt }: { absPath: string; alt: string }) {
         setDataSrc(dataUrl)
       })
       .catch(e => console.error('Failed to load image:', absPath, e))
-  }, [absPath])
+  }, [absPath, dataSrc])
 
   return (
     <img
@@ -394,7 +515,7 @@ function CopyButton({ getText }: { getText: () => string }) {
   )
 }
 
-export function RichPreview({ content, noteId, searchQuery = '', searchMatchIndex = 0 }: RichPreviewProps) {
+export function RichPreview({ content, noteId, searchQuery = '', searchMatchIndex = 0, forExport = false }: RichPreviewProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const pendingScrollRef = useRef<number | null>(null)
@@ -597,6 +718,7 @@ export function RichPreview({ content, noteId, searchQuery = '', searchMatchInde
   return (
     <div ref={scrollRef} className="h-full overflow-y-auto px-8 py-6 antialiased">
       <div ref={containerRef} className="max-w-[720px] mx-auto font-sans text-[15px] leading-[1.7] text-foreground">
+        <ExportModeContext.Provider value={forExport}>
         {segments.map((seg, i) =>
           seg.kind === 'embed' ? (
             <PreviewFileEmbed
@@ -606,6 +728,7 @@ export function RichPreview({ content, noteId, searchQuery = '', searchMatchInde
               sizeBytes={seg.sizeBytes}
               vaultPath={vaultPath ?? null}
               noteId={noteId}
+              defaultExpanded={forExport}
             />
           ) : seg.kind === 'video-url' ? (
             <VideoEmbedPlayer key={i} embed={getVideoEmbed(seg.url)!} />
@@ -620,6 +743,7 @@ export function RichPreview({ content, noteId, searchQuery = '', searchMatchInde
             </ReactMarkdown>
           )
         )}
+        </ExportModeContext.Provider>
       </div>
     </div>
   )

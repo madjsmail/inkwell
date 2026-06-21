@@ -1,4 +1,4 @@
-import { useRef, useState, useCallback } from 'react'
+import { useRef, useState, useEffect } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
 import {
   Share2,
@@ -9,9 +9,10 @@ import {
   Copy,
   Check,
   Download,
+  Loader2,
 } from 'lucide-react'
-import { RichPreview } from './RichPreview'
-import { cn } from '../../lib/utils'
+import { RichPreview, PreloadContext } from './RichPreview'
+import { cn, uint8ToBase64 } from '../../lib/utils'
 import {
   captureThemeVars,
   buildHtmlDocument,
@@ -58,50 +59,158 @@ const FORMATS: Array<{
   },
 ]
 
+// ─── Asset preloading ─────────────────────────────────────────────────────────
+
+const MIME_MAP: Record<string, string> = {
+  png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg',
+  gif: 'image/gif', webp: 'image/webp', svg: 'image/svg+xml',
+  avif: 'image/avif', bmp: 'image/bmp',
+  pdf: 'application/pdf',
+  mp4: 'video/mp4', webm: 'video/webm', mov: 'video/quicktime', avi: 'video/x-msvideo',
+}
+
+function mimeFor(ext: string): string {
+  return MIME_MAP[ext.toLowerCase()] ?? 'application/octet-stream'
+}
+
+/**
+ * Parse all local file references from note content:
+ *   ![[relative/path.ext]]  — file embeds
+ *   ![alt](relative/path.ext) — markdown images (not http/https)
+ * Returns an array of relative paths (deduped).
+ */
+function parseLocalPaths(content: string): string[] {
+  const paths = new Set<string>()
+  // Obsidian-style embeds: ![[path]]
+  for (const m of content.matchAll(/!\[\[([^\]]+)]]/g)) {
+    const p = m[1].trim()
+    if (p) paths.add(p)
+  }
+  // Standard markdown images: ![alt](path) — skip http/https/data URLs
+  for (const m of content.matchAll(/!\[[^\]]*\]\(([^)]+)\)/g)) {
+    const p = m[1].trim()
+    if (p && !p.startsWith('http') && !p.startsWith('data:')) paths.add(p)
+  }
+  return [...paths]
+}
+
+/**
+ * Read all local media files referenced in the note and return a Map of
+ * { absolutePath → data:mime;base64,... }. Skips unsupported or missing files.
+ */
+async function preloadAssets(
+  content: string,
+  vaultPath: string | undefined,
+): Promise<Map<string, string>> {
+  const cache = new Map<string, string>()
+  if (!vaultPath) return cache
+
+  const { readFile } = await import('@tauri-apps/plugin-fs')
+  const relativePaths = parseLocalPaths(content)
+
+  await Promise.all(
+    relativePaths.map(async (rel) => {
+      try {
+        const absPath = `${vaultPath}/${rel}`
+        const ext = rel.split('.').pop()?.toLowerCase() ?? ''
+        const mime = mimeFor(ext)
+        // Skip unsupported or non-media types
+        if (!mime.startsWith('image/') && !mime.startsWith('video/') && mime !== 'application/pdf') return
+        const bytes = await readFile(absPath)
+        const b64 = uint8ToBase64(new Uint8Array(bytes))
+        cache.set(absPath, `data:${mime};base64,${b64}`)
+      } catch {
+        // Missing file — leave it out; component will show a fallback
+      }
+    })
+  )
+
+  return cache
+}
+
 // ─── ShareDialog ──────────────────────────────────────────────────────────────
 
 interface ShareDialogProps {
   note: Note
+  vaultPath?: string
 }
 
-export function ShareDialog({ note }: ShareDialogProps) {
+export function ShareDialog({ note, vaultPath }: ShareDialogProps) {
   const [open, setOpen] = useState(false)
   const [format, setFormat] = useState<Format>('markdown')
   const [copied, setCopied] = useState(false)
   const [saving, setSaving] = useState(false)
 
+  // Preloaded base64 data for all local assets in this note
+  const [preloadCache, setPreloadCache] = useState<ReadonlyMap<string, string>>(new Map())
+  const [preparingExport, setPreparingExport] = useState(false)
+
   // Points to the RichPreview wrapper — its innerHTML is captured for HTML/PDF export
   const innerRef = useRef<HTMLDivElement>(null)
 
-  const getContent = useCallback((): string => {
-    if (format === 'markdown') return note.content
-    const inner = innerRef.current?.innerHTML ?? ''
-    return buildHtmlDocument(note.title, inner, captureThemeVars())
-  }, [format, note.content, note.title])
+  const slug =
+    note.title
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '') || 'note'
+
+  // When the dialog opens and format requires a rendered preview, preload all assets
+  useEffect(() => {
+    if (!open || format === 'markdown') return
+    let cancelled = false
+    setPreparingExport(true)
+    preloadAssets(note.content, vaultPath)
+      .then(cache => {
+        if (!cancelled) {
+          setPreloadCache(cache)
+          setPreparingExport(false)
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setPreparingExport(false)
+      })
+    return () => { cancelled = true }
+  }, [open, format, note.content, vaultPath])
+
+  const captureHtml = (): string => {
+    const container = innerRef.current
+    if (!container) return ''
+    return container.innerHTML
+  }
+
+  const getMarkdown = () => note.content
 
   const handleCopy = async () => {
-    await navigator.clipboard.writeText(getContent())
+    const text = format === 'markdown'
+      ? getMarkdown()
+      : buildHtmlDocument(note.title, captureHtml(), captureThemeVars())
+    await navigator.clipboard.writeText(text)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
   }
 
   const handleSave = async () => {
     setSaving(true)
-    const fmt = FORMATS.find(f => f.id === format)!
-    const slug =
-      note.title
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/^-|-$/g, '') || 'note'
-    await saveAsFile(getContent(), `${slug}.${fmt.ext}`, fmt.ext)
-    setSaving(false)
+    try {
+      const fmt = FORMATS.find(f => f.id === format)!
+      const content = format === 'markdown'
+        ? getMarkdown()
+        : buildHtmlDocument(note.title, captureHtml(), captureThemeVars())
+      await saveAsFile(content, `${slug}.${fmt.ext}`, fmt.ext)
+    } catch (e) {
+      console.error('Export failed:', e)
+    } finally {
+      setSaving(false)
+    }
   }
 
-  const handlePrint = () => {
-    printAsHtml(getContent())
+  const handlePrint = async () => {
+    const html = buildHtmlDocument(note.title, captureHtml(), captureThemeVars())
+    printAsHtml(html)
   }
 
   const current = FORMATS.find(f => f.id === format)!
+  const exportBusy = saving || preparingExport
 
   return (
     <Dialog.Root open={open} onOpenChange={setOpen}>
@@ -188,16 +297,22 @@ export function ShareDialog({ note }: ShareDialogProps) {
                   </pre>
                 </div>
               ) : (
-                /* Rendered preview (used for both HTML + PDF exports) */
+                /* Rendered preview (used for both HTML + PDF exports).
+                   forExport=true auto-expands all embeds and encodes media as
+                   base64 so the saved file is fully self-contained.
+                   PreloadContext provides synchronously-available base64 data
+                   so components don't need async effects during capture. */
                 <div ref={innerRef} className="absolute inset-0 overflow-auto">
-                  <RichPreview content={note.content} />
+                  <PreloadContext.Provider value={preloadCache}>
+                    <RichPreview content={note.content} forExport />
+                  </PreloadContext.Provider>
                 </div>
               )}
 
               {/* Format badge */}
               <div className="absolute top-3 right-3 pointer-events-none">
                 <span className="text-[10px] font-medium text-tertiary bg-surface/80 backdrop-blur-sm border border-border/50 rounded px-2 py-1">
-                  {current.label} preview
+                  {preparingExport ? 'Loading media…' : `${current.label} preview`}
                 </span>
               </div>
             </div>
@@ -214,11 +329,13 @@ export function ShareDialog({ note }: ShareDialogProps) {
             <div className="flex items-center gap-2">
               <button
                 onClick={handleCopy}
+                disabled={exportBusy}
                 className={cn(
                   'flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs transition-colors border',
                   copied
                     ? 'bg-accent/10 text-accent border-accent/30'
                     : 'bg-surface border-border text-muted-foreground hover:text-foreground hover:bg-active',
+                  exportBusy && 'opacity-50 cursor-not-allowed',
                 )}
               >
                 {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
@@ -228,7 +345,11 @@ export function ShareDialog({ note }: ShareDialogProps) {
               {format === 'pdf' ? (
                 <button
                   onClick={handlePrint}
-                  className="flex items-center gap-1.5 px-4 py-1.5 rounded-md text-xs font-medium bg-accent text-accent-foreground hover:opacity-90 transition-opacity"
+                  disabled={exportBusy}
+                  className={cn(
+                    'flex items-center gap-1.5 px-4 py-1.5 rounded-md text-xs font-medium bg-accent text-accent-foreground transition-opacity',
+                    exportBusy ? 'opacity-50 cursor-not-allowed' : 'hover:opacity-90',
+                  )}
                 >
                   <Printer className="w-3.5 h-3.5" />
                   Print…
@@ -236,15 +357,18 @@ export function ShareDialog({ note }: ShareDialogProps) {
               ) : (
                 <button
                   onClick={handleSave}
-                  disabled={saving}
+                  disabled={exportBusy}
                   className={cn(
                     'flex items-center gap-1.5 px-4 py-1.5 rounded-md text-xs font-medium transition-opacity',
                     'bg-accent text-accent-foreground',
-                    saving ? 'opacity-50 cursor-not-allowed' : 'hover:opacity-90',
+                    exportBusy ? 'opacity-50 cursor-not-allowed' : 'hover:opacity-90',
                   )}
                 >
-                  <Download className="w-3.5 h-3.5" />
-                  {saving ? 'Saving…' : `Save as .${current.ext}`}
+                  {preparingExport
+                    ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    : <Download className="w-3.5 h-3.5" />
+                  }
+                  {preparingExport ? 'Loading…' : saving ? 'Saving…' : `Save as .${current.ext}`}
                 </button>
               )}
             </div>

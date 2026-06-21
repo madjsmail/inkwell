@@ -28,6 +28,25 @@ import {
   writeBoardsFile,
 } from "../lib/vault";
 
+// ─── Active-vault state file ──────────────────────────────────────────────────
+// Written to ~/.inkwell/active-vault whenever the user opens a vault.
+// The MCP server reads this file on every tool call so it always operates
+// on the vault currently open in the app, regardless of the static env var.
+
+async function writeActiveVaultFile(vaultPath: string): Promise<void> {
+  try {
+    const { writeTextFile, mkdir } = await import("@tauri-apps/plugin-fs");
+    const { homeDir, join } = await import("@tauri-apps/api/path");
+    const home = await homeDir();
+    const dir = await join(home, ".inkwell");
+    const file = await join(dir, "active-vault");
+    await mkdir(dir, { recursive: true });
+    await writeTextFile(file, vaultPath);
+  } catch (e) {
+    console.warn("[inkwell] could not write active-vault file:", e);
+  }
+}
+
 // ─── First-run welcome content ────────────────────────────────────────────────
 
 const WELCOME_CONTENT = `# Welcome to inkwell ✒️
@@ -551,6 +570,10 @@ export const useAppStore = create<AppState>((set, get) => ({
       selectedFolderId: folders[0]?.id ?? null,
       activeView: "notes",
     });
+
+    // Tell the MCP server which vault is active so it always operates
+    // on the correct path rather than the stale env-var value.
+    writeActiveVaultFile(path);
   },
 
   closeVault: () =>

@@ -1,3 +1,4 @@
+#[cfg(target_os = "macos")]
 use window_vibrancy::{apply_vibrancy, clear_vibrancy, NSVisualEffectMaterial};
 
 /// Toggle macOS NSVisualEffectView (native sidebar glass) on the main window.
