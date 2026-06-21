@@ -1,6 +1,5 @@
 name: Release
 
-# Triggers on version tags: git tag v0.4.3 && git push origin v0.4.3
 on:
   push:
     tags:
@@ -8,43 +7,14 @@ on:
 
 jobs:
   release:
+    runs-on: macos-latest
     permissions:
       contents: write
-
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          # macOS — universal binary (Apple Silicon + Intel in one .dmg)
-          - platform: macos-latest
-            args: --target universal-apple-darwin
-
-          # Windows — 64-bit NSIS installer + .msi
-          - platform: windows-latest
-            args: ''
-
-          # Linux — .deb + .AppImage (x86_64)
-          - platform: ubuntu-22.04
-            args: ''
-
-    runs-on: ${{ matrix.platform }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # ── Linux system deps ────────────────────────────────────────────────────
-      - name: Install Linux dependencies
-        if: matrix.platform == 'ubuntu-22.04'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            libwebkit2gtk-4.1-dev \
-            libappindicator3-dev \
-            librsvg2-dev \
-            patchelf
-
-      # ── Node + pnpm ──────────────────────────────────────────────────────────
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
@@ -55,22 +25,19 @@ jobs:
         with:
           version: latest
 
-      # ── Rust ─────────────────────────────────────────────────────────────────
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
 
       - name: Rust cache
         uses: swatinem/rust-cache@v2
         with:
           workspaces: src-tauri -> target
 
-      # ── Frontend ─────────────────────────────────────────────────────────────
       - name: Install frontend dependencies
         run: pnpm install
 
-      # ── Build & release ──────────────────────────────────────────────────────
       - name: Build and publish release
         uses: tauri-apps/tauri-action@v0
         env:
@@ -83,9 +50,6 @@ jobs:
             | Platform | File |
             |----------|------|
             | macOS (Apple Silicon + Intel) | `inkwell_*.dmg` |
-            | Windows | `inkwell_*_x64-setup.exe` or `inkwell_*_x64_en-US.msi` |
-            | Linux (Debian/Ubuntu) | `inkwell_*_amd64.deb` |
-            | Linux (universal) | `inkwell_*_amd64.AppImage` |
           releaseDraft: true
           prerelease: false
-          args: ${{ matrix.args }}
+          args: --target universal-apple-darwin
