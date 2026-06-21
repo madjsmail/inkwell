@@ -1,0 +1,5 @@
+[net]
+retry = 10
+
+[registries.crates-io]
+protocol = "sparse"
