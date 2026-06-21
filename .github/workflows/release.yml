@@ -7,13 +7,40 @@ on:
 
 jobs:
   release:
-    runs-on: macos-latest
     permissions:
       contents: write
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-latest
+            args: --target universal-apple-darwin
+            rust-targets: aarch64-apple-darwin,x86_64-apple-darwin
+
+          - platform: windows-latest
+            args: ''
+            rust-targets: ''
+
+          - platform: ubuntu-22.04
+            args: ''
+            rust-targets: ''
+
+    runs-on: ${{ matrix.platform }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Install Linux dependencies
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -28,7 +55,7 @@ jobs:
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: aarch64-apple-darwin,x86_64-apple-darwin
+          targets: ${{ matrix.rust-targets }}
 
       - name: Rust cache
         uses: swatinem/rust-cache@v2
@@ -50,6 +77,9 @@ jobs:
             | Platform | File |
             |----------|------|
             | macOS (Apple Silicon + Intel) | `inkwell_*.dmg` |
+            | Windows | `inkwell_*_x64-setup.exe` |
+            | Linux (Debian/Ubuntu) | `inkwell_*_amd64.deb` |
+            | Linux (universal) | `inkwell_*_amd64.AppImage` |
           releaseDraft: true
           prerelease: false
-          args: --target universal-apple-darwin
+          args: ${{ matrix.args }}
