@@ -515,6 +515,23 @@ function CopyButton({ getText }: { getText: () => string }) {
   )
 }
 
+/**
+ * Encode spaces in local image/link paths so the CommonMark parser accepts them.
+ * Must run on the raw markdown string BEFORE react-markdown sees it, because
+ * micromark rejects `![alt](path with spaces)` as plain text — urlTransform
+ * is never called for paths that the parser already rejected.
+ */
+function preprocessMarkdown(md: string): string {
+  return md.replace(
+    /(!?\[[^\]]*\])\(([^)]+)\)/g,
+    (match, prefix, url) => {
+      // Leave external URLs untouched
+      if (/^(https?:|data:|blob:|ftp:|#)/.test(url.trim())) return match
+      return `${prefix}(${url.replace(/ /g, '%20')})`
+    }
+  )
+}
+
 export function RichPreview({ content, noteId, searchQuery = '', searchMatchIndex = 0, forExport = false }: RichPreviewProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -704,9 +721,11 @@ export function RichPreview({ content, noteId, searchQuery = '', searchMatchInde
     hr: () => <hr className="border-border my-6" />,
 
     img: ({ src, alt }: any) => {
-      const isExternal = !src || /^(https?:|data:|blob:)/.test(src)
-      if (isExternal) return <ExternalImage src={src ?? ''} alt={alt ?? ''} />
-      const absPath = vaultPath ? (src.startsWith('/') ? src : `${vaultPath}/${src}`) : src
+      // Decode any %20 we inserted during preprocessing so the actual file path is restored
+      const decoded = src ? decodeURIComponent(src) : ''
+      const isExternal = !decoded || /^(https?:|data:|blob:)/.test(decoded)
+      if (isExternal) return <ExternalImage src={decoded} alt={alt ?? ''} />
+      const absPath = vaultPath ? (decoded.startsWith('/') ? decoded : `${vaultPath}/${decoded}`) : decoded
       return <LocalImage absPath={absPath} alt={alt ?? ''} />
     },
 
@@ -739,7 +758,7 @@ export function RichPreview({ content, noteId, searchQuery = '', searchMatchInde
               rehypePlugins={[rehypeHighlight, rehypeRaw]}
               components={mdComponents}
             >
-              {seg.text}
+              {preprocessMarkdown(seg.text)}
             </ReactMarkdown>
           )
         )}
