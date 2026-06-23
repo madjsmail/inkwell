@@ -4,7 +4,7 @@
   <h1>inkwell</h1>
   <p>A focused, beautiful markdown note-taking app for macOS.</p>
 
-  ![Version](https://img.shields.io/badge/version-0.4.0-orange?style=flat-square)
+  ![Version](https://img.shields.io/badge/version-0.4.8-orange?style=flat-square)
   ![Platform](https://img.shields.io/badge/platform-macOS-black?style=flat-square)
   ![License](https://img.shields.io/badge/license-MIT-orange?style=flat-square&color=c47d2e)
 </div>
@@ -15,7 +15,7 @@
 
 inkwell is a local-first markdown editor built as a native macOS desktop app. Notes are stored as plain `.md` files in a vault folder you own — no cloud, no accounts, no lock-in.
 
-It pairs a distraction-free writing environment with a rich live preview, a Kanban board, a suite of themes, and deep integrations: a native MCP server so Claude can read and write your notes, and built-in GitHub sync to push your docs to any repository.
+It pairs a distraction-free writing environment with a rich live preview, a Kanban board, a canvas drawing tool, a suite of themes, and deep integrations: a native MCP server so Claude can read and write your notes, and built-in GitHub sync to push your docs to any repository.
 
 ---
 
@@ -26,15 +26,31 @@ It pairs a distraction-free writing environment with a rich live preview, a Kanb
 - Live split-view preview with full GFM rendering (tables, task lists, strikethrough)
 - Syntax-highlighted code blocks that adapt to the active theme
 - Inline code, blockquotes, ==highlights==, and embedded images
+- Attach files to any note — images, PDFs, and documents stored alongside your vault
+- Embed attachments inline with `![[filename]]` syntax
 
 **Organisation**
 - Vault-based storage — notes live as real `.md` files on disk (Obsidian-compatible)
 - Nested folders that map 1:1 to real filesystem directories
+- Inline rename of notes and folders directly in the sidebar (double-click or right-click → Rename)
+- Drag-and-drop reordering and reparenting for notes and folders
 - YAML frontmatter on every note (`id`, `created`, `updated`, `pinned`, `tags`)
 - Automatic migration from legacy JSON storage on first open
-- Kanban board view with columns, cards, due dates, and subtasks
+- Kanban board view with columns, cards, due dates, subtasks, and comments
+- Note links panel — link notes to each other and track references
 - Full-text search across all notes (⌘K)
-- Starred / favourites and trash with soft-delete
+- Pinned notes and trash with soft-delete
+
+**Canvas** *(new in v0.4)*
+- Custom HTML5 canvas drawing engine — no third-party drawing libraries
+- Tools: select, pen, rectangle, ellipse, line, arrow, text
+- Shape styling: 12-colour palette, fill toggle, three stroke widths, corner radius, font family/size/bold/italic
+- Multi-selection with rubber-band lasso, shift-click toggle, ⌘A select all
+- Resize handles on selected shapes, drag-move single and multi-selection
+- Duplicate (⌘D), undo/redo (⌘Z / ⌘⇧Z), zoom and pan (scroll or pinch)
+- Diagram notes — a slide-in half-panel with a full CodeMirror markdown editor and Edit/Preview tabs, saved to `{vault}/.inkwell/canvas-notes.md`
+- Diagram templates — Flowchart and Mind Map starters with one click
+- Canvas state auto-saved to `{vault}/.inkwell/canvas.json`
 
 **Themes**
 - 8 built-in themes: Midnight, Parchment, Ink, Dusk, Forest, Sepia, Gruvbox, Fog
@@ -54,7 +70,7 @@ It pairs a distraction-free writing environment with a rich live preview, a Kanb
 
 **Claude MCP Integration** *(new in v0.3)*
 - A native Rust MCP server ships inside the app (`inkwell-mcp`)
-- Exposes `list_notes`, `read_note`, `create_note`, `update_note`, `search_notes` tools
+- Exposes `list_notes`, `read_note`, `create_note`, `update_note`, `search_notes`, `get_vault_info` tools
 - Claude can read, write, and search your vault directly — no copy-paste
 - Notes written by Claude land as proper `.md` files with YAML frontmatter
 
@@ -73,6 +89,7 @@ It pairs a distraction-free writing environment with a rich live preview, a Kanb
 | UI | React 19 + TypeScript |
 | Styling | Tailwind CSS v3 |
 | Editor | CodeMirror 6 |
+| Canvas | HTML5 Canvas 2D API (custom engine) |
 | State | Zustand |
 | Markdown | react-markdown + remark-gfm + rehype-highlight |
 | Drag & drop | @dnd-kit/core |
@@ -125,14 +142,13 @@ Then add it to your Claude Desktop config (`~/Library/Application Support/Claude
 {
   "mcpServers": {
     "inkwell": {
-      "command": "/path/to/inkwell-mcp",
-      "env": {
-        "INKWELL_VAULT_PATH": "/path/to/your/vault"
-      }
+      "command": "/path/to/inkwell-mcp"
     }
   }
 }
 ```
+
+The MCP server reads the active vault path from `~/.inkwell/active-vault`, which inkwell writes automatically when you open a vault.
 
 ---
 
@@ -142,17 +158,18 @@ Then add it to your Claude Desktop config (`~/Library/Application Support/Claude
 inkwell/
 ├── src/
 │   ├── components/
-│   │   ├── editor/       # MarkdownEditor, RichPreview, ShareDialog
+│   │   ├── editor/       # MarkdownEditor, RichPreview, AttachmentsBar, MediaPanel, ShareDialog
 │   │   ├── layout/       # AppShell, Sidebar, NoteList, EditorPane
-│   │   ├── board/        # Kanban BoardView, KanbanColumn, TaskCard
+│   │   ├── board/        # Kanban BoardView, KanbanColumn, TaskCard, TaskDrawer
+│   │   ├── canvas/       # CanvasView, CanvasToolbar, CanvasNotesSheet, canvasTypes, canvasTemplates
 │   │   ├── settings/     # SettingsDialog, ThemeEditor
-│   │   └── shared/       # Search, dialogs, GitHubSyncDialog
+│   │   └── shared/       # Search, ContextMenu, DatePicker, GitHubSyncDialog, VaultPicker
 │   ├── store/            # Zustand store (useAppStore)
-│   ├── lib/              # vault.ts, github.ts, export.ts, themes, utils
+│   ├── lib/              # vault.ts, github.ts, export.ts, themes, attachments, utils
 │   ├── styles/           # globals.css — CSS variables & theme definitions
 │   └── types/            # TypeScript interfaces
 └── src-tauri/
-    ├── src/lib.rs         # Tauri commands (vibrancy, etc.)
+    ├── src/lib.rs         # Tauri commands (vibrancy, file rename, etc.)
     ├── mcp-server/        # inkwell-mcp — Rust MCP server for Claude
     └── tauri.conf.json    # Window config, permissions
 ```
