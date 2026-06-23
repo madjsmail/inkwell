@@ -157,6 +157,8 @@ interface AppState {
   ) => void;
   sidebarGlass: boolean;
   setSidebarGlass: (enabled: boolean) => void;
+  canvasEnabled: boolean;
+  setCanvasEnabled: (enabled: boolean) => void;
   searchOpen: boolean;
   searchQuery: string;
   activeTaskId: string | null;
@@ -185,6 +187,7 @@ interface AppState {
   pinNote: (id: string) => void;
   createNote: (folderId: string | null) => void;
   renameNote: (id: string, title: string) => void;
+  renameFolder: (id: string, newName: string) => void;
   createFolder: (name: string, parentId?: string | null) => void;
   deleteNote: (id: string) => void;
   deleteNotes: (ids: string[]) => void;
@@ -269,6 +272,13 @@ function findFolderById(folders: Folder[], id: string): Folder | null {
     if (found) return found;
   }
   return null;
+}
+
+function renameFolderInTree(folders: Folder[], id: string, newName: string, newId: string, newPath: string): Folder[] {
+  return folders.map((f) => {
+    if (f.id === id) return { ...f, id: newId, name: newName, path: newPath }
+    return { ...f, children: renameFolderInTree(f.children, id, newName, newId, newPath) }
+  })
 }
 
 function toggleFolderById(folders: Folder[], id: string): Folder[] {
@@ -488,6 +498,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
   editorLineHeight: localStorage.getItem("inkwell-editor-lineHeight") ?? "1.7",
   sidebarGlass: localStorage.getItem("inkwell-sidebar-glass") === "true",
+  canvasEnabled: localStorage.getItem("inkwell-canvas-enabled") === "true",
   searchOpen: false,
   searchQuery: "",
   activeTaskId: null,
@@ -730,6 +741,15 @@ export const useAppStore = create<AppState>((set, get) => ({
       import("@tauri-apps/api/core").then(({ invoke }) => {
         invoke("set_vibrancy", { enabled }).catch(console.error);
       });
+    }
+  },
+
+  setCanvasEnabled: (enabled) => {
+    localStorage.setItem("inkwell-canvas-enabled", String(enabled));
+    set({ canvasEnabled: enabled });
+    // If disabling while the canvas view is active, fall back to notes
+    if (!enabled && get().activeView === "canvas") {
+      set({ activeView: "notes" });
     }
   },
 
@@ -1022,6 +1042,28 @@ export const useAppStore = create<AppState>((set, get) => ({
         updatedAt,
       })),
     }));
+  },
+
+  renameFolder: (id, newName) => {
+    const { folders, vaultPath } = get()
+    const folder = findFolderById(folders, id)
+    if (!folder) return
+
+    const trimmed = newName.trim() || folder.name
+    if (trimmed === folder.name) return
+
+    // New id = parent prefix + new slug
+    const parentPrefix = folder.parentId ? `${folder.parentId}/` : ''
+    const newId   = `${parentPrefix}${trimmed}`
+    const newPath = vaultPath ? `${vaultPath}/${newId}` : newId
+
+    if (folder.path !== newPath) {
+      renameItem(folder.path, newPath).catch(console.error)
+    }
+
+    set((s) => ({
+      folders: renameFolderInTree(s.folders, id, trimmed, newId, newPath),
+    }))
   },
 
   deleteNotes: (ids) => {

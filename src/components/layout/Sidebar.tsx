@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useMemo, useEffect } from "react";
+import { useState, useCallback, useRef, useMemo, useEffect, useLayoutEffect } from "react";
 import {
   ChevronRight,
   ChevronDown,
@@ -9,6 +9,7 @@ import {
   FolderPlus,
   Search,
   PenLine,
+  PenSquare,
 } from "lucide-react";
 import { SettingsDialog } from '../settings/SettingsDialog'
 import {
@@ -108,6 +109,10 @@ interface NoteRowProps {
   dropBefore: boolean;
   dropAfter: boolean;
   onDelete: () => void;
+  renamingId: string | null;
+  onStartRename: (id: string) => void;
+  onCommitRename: (id: string, name: string) => void;
+  onCancelRename: () => void;
 }
 
 function NoteRow({
@@ -119,8 +124,14 @@ function NoteRow({
   dropBefore,
   dropAfter,
   onDelete,
+  renamingId,
+  onStartRename,
+  onCommitRename,
+  onCancelRename,
 }: NoteRowProps) {
   const dndId = `note:${note.id}`;
+  const isRenaming = renamingId === note.id;
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const {
     attributes,
@@ -129,23 +140,22 @@ function NoteRow({
     isDragging,
   } = useDraggable({
     id: dndId,
-    data: {
-      type: "note",
-      id: note.id,
-      folderId: note.folder,
-    } satisfies DragItemData,
+    data: { type: "note", id: note.id, folderId: note.folder } satisfies DragItemData,
+    disabled: isRenaming,
   });
 
-  // Droppable goes on the outer wrapper so the full row height (including
-  // inter-row margin) is a valid drop target — eliminates gap-flicker.
   const { setNodeRef: setDropRef } = useDroppable({
     id: dndId,
-    data: {
-      type: "note",
-      id: note.id,
-      folderId: note.folder,
-    } satisfies DragItemData,
+    data: { type: "note", id: note.id, folderId: note.folder } satisfies DragItemData,
   });
+
+  // Auto-select all text when rename input mounts
+  useLayoutEffect(() => {
+    if (isRenaming && inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.select();
+    }
+  }, [isRenaming]);
 
   return (
     <div ref={setDropRef} className="relative group">
@@ -158,12 +168,13 @@ function NoteRow({
           !isSelected && "hover:bg-surface",
           isSelected && "bg-active",
           isDragging && "opacity-20 pointer-events-none",
+          isRenaming && "cursor-default",
         )}
         style={{ paddingLeft }}
-        onClick={(e) => handleNoteSelect(e, note.id, orderedIds)}
+        onClick={(e) => !isRenaming && handleNoteSelect(e, note.id, orderedIds)}
+        onDoubleClick={(e) => { e.stopPropagation(); onStartRename(note.id); }}
         onContextMenu={onContextMenu}
-        {...attributes}
-        {...listeners}
+        {...(isRenaming ? {} : { ...attributes, ...listeners })}
       >
         <FileText
           className={cn(
@@ -171,26 +182,43 @@ function NoteRow({
             isSelected ? "text-accent" : "text-muted-foreground",
           )}
         />
-        <span
-          className={cn(
-            "truncate flex-1",
-            isSelected ? "text-accent font-medium" : "text-foreground",
-          )}
-        >
-          {note.title}
-        </span>
-        <button
-          className="opacity-0 group-hover:opacity-100 transition-opacity shrink-0 w-5 h-5 flex items-center justify-center rounded text-muted-foreground/50 hover:text-destructive hover:bg-destructive/10"
-          onClick={(e) => {
-            e.stopPropagation();
-            onDelete();
-          }}
-          onPointerDown={(e) => e.stopPropagation()}
-          tabIndex={-1}
-          title="Delete note"
-        >
-          <Trash2 className="w-3 h-3" />
-        </button>
+
+        {isRenaming ? (
+          <input
+            ref={inputRef}
+            defaultValue={note.title}
+            className="flex-1 bg-transparent text-foreground text-[13px] outline-none border-b border-accent min-w-0"
+            onKeyDown={(e) => {
+              if (e.key === "Enter")  { e.preventDefault(); onCommitRename(note.id, e.currentTarget.value); }
+              if (e.key === "Escape") { e.preventDefault(); onCancelRename(); }
+              e.stopPropagation();
+            }}
+            onBlur={(e) => onCommitRename(note.id, e.currentTarget.value)}
+            onClick={(e) => e.stopPropagation()}
+            onPointerDown={(e) => e.stopPropagation()}
+          />
+        ) : (
+          <span
+            className={cn(
+              "truncate flex-1",
+              isSelected ? "text-accent font-medium" : "text-foreground",
+            )}
+          >
+            {note.title}
+          </span>
+        )}
+
+        {!isRenaming && (
+          <button
+            className="opacity-0 group-hover:opacity-100 transition-opacity shrink-0 w-5 h-5 flex items-center justify-center rounded text-muted-foreground/50 hover:text-destructive hover:bg-destructive/10"
+            onClick={(e) => { e.stopPropagation(); onDelete(); }}
+            onPointerDown={(e) => e.stopPropagation()}
+            tabIndex={-1}
+            title="Delete note"
+          >
+            <Trash2 className="w-3 h-3" />
+          </button>
+        )}
       </div>
       {dropAfter && <DropLine pos="bottom" />}
     </div>
@@ -204,12 +232,12 @@ interface FolderRowProps {
   depth?: number;
   siblingFolderIds: string[];
   onFolderContextMenu: (e: React.MouseEvent, folder: FolderType) => void;
-  onNoteContextMenu: (
-    e: React.MouseEvent,
-    noteId: string,
-    noteTitle: string,
-  ) => void;
+  onNoteContextMenu: (e: React.MouseEvent, noteId: string, noteTitle: string) => void;
   dropIndicator: DropIndicator | null;
+  renamingId: string | null;
+  onStartRename: (id: string) => void;
+  onCommitRename: (id: string, name: string) => void;
+  onCancelRename: () => void;
 }
 
 function FolderRow({
@@ -219,9 +247,22 @@ function FolderRow({
   onFolderContextMenu,
   onNoteContextMenu,
   dropIndicator,
+  renamingId,
+  onStartRename,
+  onCommitRename,
+  onCancelRename,
 }: FolderRowProps) {
   const { selectedFolderId, selectedNoteIds, selectFolder, toggleFolder, activeView, setActiveView } =
     useAppStore();
+  const isRenamingThis = renamingId === folder.id;
+  const folderInputRef = useRef<HTMLInputElement>(null);
+
+  useLayoutEffect(() => {
+    if (isRenamingThis && folderInputRef.current) {
+      folderInputRef.current.focus();
+      folderInputRef.current.select();
+    }
+  }, [isRenamingThis]);
 
   const isSelected = selectedFolderId === folder.id;
   const hasSelectedNote = folder.notes.some((n) =>
@@ -244,6 +285,7 @@ function FolderRow({
       id: folder.id,
       parentId: folder.parentId,
     } satisfies DragItemData,
+    disabled: isRenamingThis,
   });
 
   // Droppable on the outer header wrapper — covers the full row height
@@ -283,13 +325,14 @@ function FolderRow({
           )}
           style={{ paddingLeft }}
           onClick={() => {
+            if (isRenamingThis) return;
             toggleFolder(folder.id);
             selectFolder(folder.id);
             if (activeView !== 'notes') setActiveView('notes');
           }}
+          onDoubleClick={(e) => { e.stopPropagation(); onStartRename(folder.id); }}
           onContextMenu={(e) => onFolderContextMenu(e, folder)}
-          {...attributes}
-          {...listeners}
+          {...(isRenamingThis ? {} : { ...attributes, ...listeners })}
         >
           <span
             className={cn(
@@ -309,18 +352,34 @@ function FolderRow({
               isFolderActive ? "text-accent" : "text-muted-foreground",
             )}
           />
-          <span
-            className={cn(
-              "truncate",
-              isFolderActive
-                ? "text-accent font-medium"
-                : depth === 0
-                  ? "text-foreground font-medium"
-                  : "text-foreground",
-            )}
-          >
-            {folder.name}
-          </span>
+          {isRenamingThis ? (
+            <input
+              ref={folderInputRef}
+              defaultValue={folder.name}
+              className="flex-1 bg-transparent text-foreground text-[13px] outline-none border-b border-accent min-w-0"
+              onKeyDown={(e) => {
+                if (e.key === "Enter")  { e.preventDefault(); onCommitRename(folder.id, e.currentTarget.value); }
+                if (e.key === "Escape") { e.preventDefault(); onCancelRename(); }
+                e.stopPropagation();
+              }}
+              onBlur={(e) => onCommitRename(folder.id, e.currentTarget.value)}
+              onClick={(e) => e.stopPropagation()}
+              onPointerDown={(e) => e.stopPropagation()}
+            />
+          ) : (
+            <span
+              className={cn(
+                "truncate",
+                isFolderActive
+                  ? "text-accent font-medium"
+                  : depth === 0
+                    ? "text-foreground font-medium"
+                    : "text-foreground",
+              )}
+            >
+              {folder.name}
+            </span>
+          )}
         </div>
         {dropAfter && <DropLine pos="bottom" />}
       </div>
@@ -336,6 +395,10 @@ function FolderRow({
               onFolderContextMenu={onFolderContextMenu}
               onNoteContextMenu={onNoteContextMenu}
               dropIndicator={dropIndicator}
+              renamingId={renamingId}
+              onStartRename={onStartRename}
+              onCommitRename={onCommitRename}
+              onCancelRename={onCancelRename}
             />
           ))}
 
@@ -363,6 +426,10 @@ function FolderRow({
                   dropIndicator.position === "after"
                 }
                 onDelete={() => confirmDeleteNote(note.id, note.title)}
+                renamingId={renamingId}
+                onStartRename={onStartRename}
+                onCommitRename={onCommitRename}
+                onCancelRename={onCancelRename}
               />
             );
           })}
@@ -387,11 +454,38 @@ export function Sidebar() {
     moveNotes,
     reorderNote,
     moveFolder,
+    renameNote,
+    renameFolder,
     openPrompt,
     selectedFolderId,
     clearFolderSelection,
     sidebarGlass,
+    canvasEnabled,
   } = useAppStore();
+
+  // ── Inline rename state ─────────────────────────────────────────────────────
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+
+  const startRename = useCallback((id: string) => {
+    setContextMenu(null);
+    setRenamingId(id);
+  }, []);
+
+  const commitRename = useCallback((id: string, rawName: string) => {
+    if (!renamingId) return;
+    setRenamingId(null);
+    const trimmed = rawName.trim();
+    if (!trimmed) return;
+    // Determine if it's a note or folder id
+    const isNote = notes.some((n) => n.id === id);
+    if (isNote) {
+      renameNote(id, trimmed);
+    } else {
+      renameFolder(id, trimmed);
+    }
+  }, [renamingId, notes, renameNote, renameFolder]);
+
+  const cancelRename = useCallback(() => setRenamingId(null), []);
 
   // Keyboard shortcut: Delete/Backspace deletes selected notes (when not typing)
   useEffect(() => {
@@ -654,6 +748,7 @@ export function Sidebar() {
       x: e.clientX,
       y: e.clientY,
       items: [
+        { label: "Rename", onClick: () => startRename(folder.id) },
         {
           label: "Delete folder",
           destructive: true,
@@ -674,6 +769,7 @@ export function Sidebar() {
       x: e.clientX,
       y: e.clientY,
       items: [
+        { label: "Rename", onClick: () => startRename(noteId) },
         {
           label: "Delete note",
           destructive: true,
@@ -785,18 +881,14 @@ export function Sidebar() {
                     isSelected={isNoteSelected}
                     orderedIds={pinnedOrderedIds}
                     paddingLeft={ROW_PADDING}
-                    onContextMenu={(e) =>
-                      openNoteContextMenu(e, note.id, note.title)
-                    }
-                    dropBefore={
-                      dropIndicator?.overId === noteId &&
-                      dropIndicator.position === "before"
-                    }
-                    dropAfter={
-                      dropIndicator?.overId === noteId &&
-                      dropIndicator.position === "after"
-                    }
+                    onContextMenu={(e) => openNoteContextMenu(e, note.id, note.title)}
+                    dropBefore={dropIndicator?.overId === noteId && dropIndicator.position === "before"}
+                    dropAfter={dropIndicator?.overId === noteId && dropIndicator.position === "after"}
                     onDelete={() => confirmDeleteNote(note.id, note.title)}
+                    renamingId={renamingId}
+                    onStartRename={startRename}
+                    onCommitRename={commitRename}
+                    onCancelRename={cancelRename}
                   />
                 );
               })}
@@ -842,18 +934,14 @@ export function Sidebar() {
                   isSelected={isNoteSelected}
                   orderedIds={rootNoteOrderedIds}
                   paddingLeft={ROW_PADDING}
-                  onContextMenu={(e) =>
-                    openNoteContextMenu(e, note.id, note.title)
-                  }
-                  dropBefore={
-                    dropIndicator?.overId === noteId &&
-                    dropIndicator.position === "before"
-                  }
-                  dropAfter={
-                    dropIndicator?.overId === noteId &&
-                    dropIndicator.position === "after"
-                  }
+                  onContextMenu={(e) => openNoteContextMenu(e, note.id, note.title)}
+                  dropBefore={dropIndicator?.overId === noteId && dropIndicator.position === "before"}
+                  dropAfter={dropIndicator?.overId === noteId && dropIndicator.position === "after"}
                   onDelete={() => confirmDeleteNote(note.id, note.title)}
+                  renamingId={renamingId}
+                  onStartRename={startRename}
+                  onCommitRename={commitRename}
+                  onCancelRename={cancelRename}
                 />
               );
             })}
@@ -867,6 +955,10 @@ export function Sidebar() {
                 onFolderContextMenu={openFolderContextMenu}
                 onNoteContextMenu={openNoteContextMenu}
                 dropIndicator={dropIndicator}
+                renamingId={renamingId}
+                onStartRename={startRename}
+                onCommitRename={commitRename}
+                onCancelRename={cancelRename}
               />
             ))}
 
@@ -907,6 +999,34 @@ export function Sidebar() {
                 Board
               </span>
             </div>
+            {canvasEnabled && (
+              <div
+                className={cn(
+                  treeRowClass,
+                  "px-2 cursor-pointer hover:bg-surface",
+                  activeView === "canvas" && "bg-active",
+                )}
+                onClick={() => setActiveView("canvas")}
+              >
+                <PenSquare
+                  className={cn(
+                    "w-3.5 h-3.5",
+                    activeView === "canvas"
+                      ? "text-accent"
+                      : "text-muted-foreground",
+                  )}
+                />
+                <span
+                  className={cn(
+                    activeView === "canvas"
+                      ? "text-accent font-medium"
+                      : "text-foreground",
+                  )}
+                >
+                  Draw
+                </span>
+              </div>
+            )}
             <div
               className={cn(
                 treeRowClass,

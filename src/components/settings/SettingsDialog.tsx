@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
-import { Settings, X, Palette, Sun, Moon, Type, Folder, FolderOpen, Info, ChevronRight, Check, Plus, Pencil, Trash2, GitBranch, Eye, EyeOff, ExternalLink } from 'lucide-react'
+import { Settings, X, Palette, Sun, Moon, Type, Folder, FolderOpen, Info, ChevronRight, Check, Plus, Pencil, Trash2, GitBranch, Eye, EyeOff, ExternalLink, Sparkles } from 'lucide-react'
 import { useAppStore } from '../../store/useAppStore'
 import { cn } from '../../lib/utils'
 import { THEMES, DARK_THEMES, LIGHT_THEMES, type CustomTheme } from '../../lib/themes'
@@ -15,7 +15,7 @@ import {
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type Section = 'themes' | 'appearance' | 'editor' | 'vault' | 'github' | 'about'
+type Section = 'themes' | 'appearance' | 'editor' | 'features' | 'vault' | 'github' | 'about'
 
 // ─── Font options ─────────────────────────────────────────────────────────────
 
@@ -47,6 +47,7 @@ const NAV_ITEMS: Array<{ id: Section; label: string; icon: React.FC<{ className?
   { id: 'themes', label: 'Themes', icon: Palette },
   { id: 'appearance', label: 'Appearance', icon: Sun },
   { id: 'editor', label: 'Editor', icon: Type },
+  { id: 'features', label: 'Features', icon: Sparkles },
   { id: 'vault', label: 'Vaults', icon: Folder },
   { id: 'github', label: 'GitHub', icon: GitBranch },
   { id: 'about', label: 'About', icon: Info },
@@ -66,6 +67,7 @@ export function SettingsDialog() {
     editorFontSize, editorFontFamily, editorLineHeight,
     setEditorSettings,
     sidebarGlass, setSidebarGlass,
+    canvasEnabled, setCanvasEnabled,
   } = useAppStore()
 
   const handleSaveCustomTheme = (t: CustomTheme) => {
@@ -369,6 +371,33 @@ export function SettingsDialog() {
                       <span className="text-muted-foreground">Writing feels effortless when the editor feels right.</span>
                     </p>
                   </div>
+                </>
+              )}
+
+              {/* ── Features ── */}
+              {section === 'features' && (
+                <>
+                  <SettingRow
+                    label="Canvas"
+                    description="Freehand drawing and diagramming — add a Draw page to the sidebar"
+                  >
+                    <button
+                      role="switch"
+                      aria-checked={canvasEnabled}
+                      onClick={() => setCanvasEnabled(!canvasEnabled)}
+                      className={cn(
+                        'relative w-9 h-5 rounded-full transition-colors shrink-0',
+                        canvasEnabled ? 'bg-accent' : 'bg-border',
+                      )}
+                    >
+                      <span
+                        className={cn(
+                          'absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow-sm transition-transform',
+                          canvasEnabled ? 'translate-x-4' : 'translate-x-0',
+                        )}
+                      />
+                    </button>
+                  </SettingRow>
                 </>
               )}
 

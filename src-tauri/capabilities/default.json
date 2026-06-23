@@ -20,7 +20,12 @@
     "fs:allow-remove",
     {
       "identifier": "fs:scope",
-      "allow": [{ "path": "$HOME/**" }, { "path": "$HOME" }]
+      "allow": [
+        { "path": "$HOME/**" },
+        { "path": "$HOME" },
+        { "path": "$HOME/**/.inkwell" },
+        { "path": "$HOME/**/.inkwell/**" }
+      ]
     }
   ]
 }

@@ -5,6 +5,7 @@ import { Sidebar } from './Sidebar'
 import { NoteList } from './NoteList'
 import { EditorPane } from './EditorPane'
 import { BoardView } from '../board/BoardView'
+import { CanvasView } from '../canvas/CanvasView'
 import { SearchOverlay } from '../shared/SearchOverlay'
 import { NamePromptDialog } from '../shared/NamePromptDialog'
 import { ConfirmDialog } from '../shared/ConfirmDialog'
@@ -163,6 +164,8 @@ export function AppShell() {
       )}
 
       {activeView === 'board' && <BoardView />}
+
+      {activeView === 'canvas' && <CanvasView />}
 
       {activeView === 'trash' && (
         <div className="flex-1 flex items-center justify-center bg-panel">

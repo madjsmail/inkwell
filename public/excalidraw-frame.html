@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Canvas</title>
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/@excalidraw/excalidraw@0.17.6/dist/excalidraw.css"
+  />
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body, #root { width: 100%; height: 100%; overflow: hidden; }
+    #loading {
+      position: fixed; inset: 0;
+      display: flex; align-items: center; justify-content: center;
+      font-family: system-ui, sans-serif; font-size: 14px; color: #888;
+      background: transparent;
+    }
+  </style>
+</head>
+<body>
+  <div id="loading">Loading canvas…</div>
+  <div id="root"></div>
+
+  <!-- React 18 + ReactDOM (compatible with Excalidraw 0.17) -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <!-- Excalidraw standalone UMD bundle -->
+  <script src="https://unpkg.com/@excalidraw/excalidraw@0.17.6/dist/excalidraw.production.min.js"></script>
+
+  <script>
+    // ── postMessage protocol ───────────────────────────────────────────────
+    // parent → frame:  { type: 'LOAD',  data: { elements, appState, files } }
+    // parent → frame:  { type: 'THEME', theme: 'light' | 'dark' }
+    // frame  → parent: { type: 'READY' }
+    // frame  → parent: { type: 'CHANGE', data: { elements, appState, files } }
+
+    let excalidrawAPI = null;
+    let pendingLoad   = null;  // data received before API was ready
+    let pendingTheme  = null;
+
+    function send(msg) {
+      window.parent.postMessage(msg, '*');
+    }
+
+    // Debounced save relay to parent
+    let saveTimer = null;
+    function scheduleChange(elements, appState, files) {
+      clearTimeout(saveTimer);
+      saveTimer = setTimeout(() => {
+        send({ type: 'CHANGE', data: { elements, appState: { ...appState }, files } });
+      }, 600);
+    }
+
+    // ── Bootstrap Excalidraw ───────────────────────────────────────────────
+    window.addEventListener('load', () => {
+      const { Excalidraw } = ExcalidrawLib;
+      const { createElement, StrictMode } = React;
+      const root = ReactDOM.createRoot(document.getElementById('root'));
+
+      function App() {
+        const [theme, setTheme] = React.useState(pendingTheme ?? 'dark');
+        const [initialData] = React.useState(pendingLoad);
+
+        React.useEffect(() => {
+          const handler = (e) => {
+            if (!e.data || typeof e.data !== 'object') return;
+            if (e.data.type === 'LOAD' && excalidrawAPI) {
+              excalidrawAPI.updateScene({
+                elements: e.data.data.elements ?? [],
+                appState: e.data.data.appState ?? {},
+              });
+            }
+            if (e.data.type === 'THEME') {
+              setTheme(e.data.theme);
+              if (excalidrawAPI) excalidrawAPI.updateScene({ appState: { theme: e.data.theme } });
+            }
+          };
+          window.addEventListener('message', handler);
+          return () => window.removeEventListener('message', handler);
+        }, []);
+
+        return createElement(Excalidraw, {
+          ref: (api) => {
+            if (api && !excalidrawAPI) {
+              excalidrawAPI = api;
+              document.getElementById('loading').style.display = 'none';
+              // Flush any data that arrived before we were ready
+              if (pendingLoad) {
+                excalidrawAPI.updateScene({
+                  elements: pendingLoad.elements ?? [],
+                  appState: pendingLoad.appState ?? {},
+                });
+              }
+              send({ type: 'READY' });
+            }
+          },
+          initialData: initialData ?? { elements: [], appState: { theme } },
+          theme,
+          onChange: (elements, appState, files) => scheduleChange(elements, appState, files),
+          UIOptions: {
+            canvasActions: { saveToActiveFile: false, loadScene: false },
+          },
+        });
+      }
+
+      root.render(createElement(StrictMode, null, createElement(App)));
+    });
+
+    // ── Listen for messages from parent ────────────────────────────────────
+    window.addEventListener('message', (e) => {
+      if (!e.data || typeof e.data !== 'object') return;
+      if (e.data.type === 'LOAD')  pendingLoad  = e.data.data;
+      if (e.data.type === 'THEME') pendingTheme = e.data.theme;
+    });
+  </script>
+</body>
+</html>

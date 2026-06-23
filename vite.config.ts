@@ -8,6 +8,12 @@ const host = process.env.TAURI_DEV_HOST;
 export default defineConfig(async () => ({
   plugins: [react()],
 
+  // Excalidraw references process.env internally
+  define: {
+    "process.env.NODE_ENV": JSON.stringify("production"),
+    "process.env.IS_PREACT": JSON.stringify("false"),
+  },
+
   // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
   //
   // 1. prevent Vite from obscuring rust errors

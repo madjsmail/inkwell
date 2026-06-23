@@ -65,7 +65,7 @@ export interface Comment {
 }
 
 export type ViewMode = 'edit' | 'split' | 'preview'
-export type ActiveView = 'notes' | 'board' | 'trash'
+export type ActiveView = 'notes' | 'board' | 'trash' | 'canvas'
 
 // ─── Board system ─────────────────────────────────────────────────────────────
 
