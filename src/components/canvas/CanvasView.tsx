@@ -33,6 +33,21 @@ function unionBounds(shapes: Shape[]) {
   return { x, y, w: x2 - x, h: y2 - y }
 }
 
+/** Translate all shapes by (dx, dy) in world space */
+function offsetShapes(shapes: Shape[], dx: number, dy: number): Shape[] {
+  return shapes.map(s => {
+    switch (s.type) {
+      case 'path':    return { ...s, pts: (s as PathShape).pts.map(p => ({ x: p.x + dx, y: p.y + dy })) }
+      case 'rect':    return { ...s, x: (s as RectShape).x + dx, y: (s as RectShape).y + dy }
+      case 'ellipse': return { ...s, cx: (s as EllipseShape).cx + dx, cy: (s as EllipseShape).cy + dy }
+      case 'line':    return { ...s, x1: (s as LineShape).x1 + dx, y1: (s as LineShape).y1 + dy, x2: (s as LineShape).x2 + dx, y2: (s as LineShape).y2 + dy }
+      case 'arrow':   return { ...s, x1: (s as ArrowShape).x1 + dx, y1: (s as ArrowShape).y1 + dy, x2: (s as ArrowShape).x2 + dx, y2: (s as ArrowShape).y2 + dy }
+      case 'text':    return { ...s, x: (s as TextShape).x + dx, y: (s as TextShape).y + dy }
+      default:        return s
+    }
+  })
+}
+
 function getHandleAt(shape: Shape, wp: Point, threshold: number): ResizeHandle | null {
   const b = shapeBounds(shape), pad = 6
   const handles: [ResizeHandle, number, number][] = [
@@ -164,10 +179,12 @@ function drawShape(ctx: CanvasRenderingContext2D, s: Shape) {
 function drawSingleSelection(ctx: CanvasRenderingContext2D, s: Shape) {
   const b = shapeBounds(s), pad = 6
   ctx.save()
-  ctx.strokeStyle = '#60a5fa'; ctx.lineWidth = 1.5
-  ctx.setLineDash([4, 3])
-  ctx.strokeRect(b.x - pad, b.y - pad, b.w + pad * 2, b.h + pad * 2)
-  ctx.setLineDash([])
+  if (s.type !== 'text') {
+    ctx.strokeStyle = '#60a5fa'; ctx.lineWidth = 1.5
+    ctx.setLineDash([4, 3])
+    ctx.strokeRect(b.x - pad, b.y - pad, b.w + pad * 2, b.h + pad * 2)
+    ctx.setLineDash([])
+  }
   const corners: [number, number][] = [
     [b.x - pad, b.y - pad], [b.x + b.w + pad, b.y - pad],
     [b.x - pad, b.y + b.h + pad], [b.x + b.w + pad, b.y + b.h + pad],
@@ -248,7 +265,7 @@ export function CanvasView() {
   // Multi-selection: a Set of shape ids
   const [selectedIds,       setSelectedIds]       = useState<Set<string>>(new Set())
   const [selectedShapeType, setSelectedShapeType] = useState<string | null>(null)
-  const [textInput,         setTextInput]         = useState<{ sx: number; sy: number; wx: number; wy: number } | null>(null)
+  const [textInput,         setTextInput]         = useState<{ sx: number; sy: number; wx: number; wy: number; editingId?: string; initialValue?: string } | null>(null)
   const [spacePan,          setSpacePan]          = useState(false)
   const [cursor,            setCursorState]       = useState<string>('crosshair')
   const [showNotes,         setShowNotes]         = useState(false)
@@ -297,6 +314,9 @@ export function CanvasView() {
   const isRubberBandRef    = useRef(false)
   const rubberBandStartRef = useRef<Point>({ x: 0, y: 0 })
   const rubberBandEndRef   = useRef<Point>({ x: 0, y: 0 })
+
+  // Editing text shape id (hidden from canvas while input is open)
+  const editingIdRef         = useRef<string | null>(null)
 
   // Resize (single selection only)
   const resizingRef          = useRef<ResizeHandle | null>(null)
@@ -372,7 +392,10 @@ export function CanvasView() {
     ctx.translate(panRef.current.x, panRef.current.y)
     ctx.scale(zoomRef.current, zoomRef.current)
 
-    for (const s of shapesRef.current) drawShape(ctx, s)
+    for (const s of shapesRef.current) {
+      if (editingIdRef.current && s.id === editingIdRef.current) continue
+      drawShape(ctx, s)
+    }
     if (drawingRef.current) drawShape(ctx, drawingRef.current)
 
     // Selection overlay
@@ -476,29 +499,42 @@ export function CanvasView() {
   // ── Template loading ─────────────────────────────────────────────────────────
 
   const loadTemplate = useCallback((tpl: DiagramTemplate) => {
-    const shapes = tpl.create()
-    commit(shapes)
-    clearSelection()
-
     const canvas = canvasRef.current
     if (!canvas) return
     const DPR  = window.devicePixelRatio || 1
     const cssW = canvas.width  / DPR
     const cssH = canvas.height / DPR
 
-    const bs   = shapes.map(shapeBounds)
+    const rawShapes = tpl.create()
+    const bs   = rawShapes.map(shapeBounds)
     const minX = Math.min(...bs.map(b => b.x))
     const minY = Math.min(...bs.map(b => b.y))
     const bw   = Math.max(...bs.map(b => b.x + b.w)) - minX || 1
     const bh   = Math.max(...bs.map(b => b.y + b.h)) - minY || 1
-    const pad  = 80
 
+    // Offset new shapes so they don't land on top of existing content
+    let dx = 0, dy = 0
+    if (shapesRef.current.length > 0) {
+      const existBounds = shapesRef.current.map(shapeBounds)
+      const existMaxX = Math.max(...existBounds.map(b => b.x + b.w))
+      dx = existMaxX + 100 - minX
+      dy = -minY  // align template top to world y=0
+    }
+
+    const shapes = dx !== 0 || dy !== 0 ? offsetShapes(rawShapes, dx, dy) : rawShapes
+    commit([...shapesRef.current, ...shapes])
+    clearSelection()
+
+    // Fit the newly inserted shapes into view
+    const pad  = 80
+    const fitX = minX + dx
+    const fitY = minY + dy
     const newZoom = Math.min((cssW - pad * 2) / bw, (cssH - pad * 2) / bh, 2)
     zoomRef.current = newZoom
     setZoomState(newZoom)
     panRef.current = {
-      x: cssW / 2 - (minX + bw / 2) * newZoom,
-      y: cssH / 2 - (minY + bh / 2) * newZoom,
+      x: cssW / 2 - (fitX + bw / 2) * newZoom,
+      y: cssH / 2 - (fitY + bh / 2) * newZoom,
     }
     render()
   }, [commit, clearSelection, render])
@@ -739,6 +775,34 @@ export function CanvasView() {
     commit([...shapesRef.current, shape])
   }, [commit, scheduleSave, render, setSelection, updateCursor])
 
+  // ── Double-click: edit existing text shape ───────────────────────────────────
+
+  const onDoubleClick = useCallback((e: React.MouseEvent) => {
+    const wp  = toWorld(e)
+    const hit = [...shapesRef.current].reverse().find(
+      s => s.type === 'text' && hitTest(s, wp.x, wp.y)
+    ) as TextShape | undefined
+    if (!hit) return
+    e.preventDefault()
+
+    // Sync toolbar settings to the shape
+    setFontSize(hit.size);                          fontSizeRef.current   = hit.size
+    setFontFamily(hit.fontFamily ?? FONT_SANS);     fontFamilyRef.current = hit.fontFamily ?? FONT_SANS
+    setBold(hit.bold ?? false);                     boldRef.current       = hit.bold ?? false
+    setItalic(hit.italic ?? false);                 italicRef.current     = hit.italic ?? false
+    setColor(hit.color);                            colorRef.current      = hit.color
+
+    // Convert world position to container-relative screen coords
+    // hit.y is baseline; position input so its visual baseline lines up
+    const sx          = hit.x * zoomRef.current + panRef.current.x
+    const syBaseline  = hit.y * zoomRef.current + panRef.current.y
+    const screenSize  = hit.size * zoomRef.current
+    const sy          = syBaseline - screenSize + Math.min(hit.size, 32)
+
+    setTextInput({ sx, sy, wx: hit.x, wy: hit.y - hit.size, editingId: hit.id, initialValue: hit.text })
+    setTool('text'); toolRef.current = 'text'
+  }, [toWorld])
+
   // ── Wheel ────────────────────────────────────────────────────────────────────
 
   const onWheel = useCallback((e: React.WheelEvent) => {
@@ -825,6 +889,12 @@ export function CanvasView() {
     return () => { window.removeEventListener('keydown', down); window.removeEventListener('keyup', up) }
   }, [undo, redo, commit, render, clearSelection, setSelection, updateCursor])
 
+  // Sync editingIdRef so render can skip the shape being edited
+  useEffect(() => {
+    editingIdRef.current = textInput?.editingId ?? null
+    render()
+  }, [textInput, render])
+
   // Focus text input
   useEffect(() => {
     if (textInput) { const id = setTimeout(() => textRef.current?.focus(), 0); return () => clearTimeout(id) }
@@ -840,16 +910,32 @@ export function CanvasView() {
   const commitText = useCallback(() => {
     if (!textInput) return
     const val = textRef.current?.value?.trim()
+    const { editingId } = textInput
     setTextInput(null)
-    if (!val) return
     const size = fontSizeRef.current
-    commit([...shapesRef.current, {
-      id: uid(), type: 'text',
-      x: textInput.wx, y: textInput.wy + size,
-      text: val, size, fontFamily: fontFamilyRef.current,
-      bold: boldRef.current, italic: italicRef.current,
-      color: colorRef.current, fill: 'none', width: 1,
-    } as TextShape])
+    if (editingId) {
+      // Editing an existing shape
+      if (!val) {
+        // Empty → delete the shape
+        commit(shapesRef.current.filter(s => s.id !== editingId))
+      } else {
+        commit(shapesRef.current.map(s =>
+          s.id === editingId
+            ? { ...s, text: val, size, fontFamily: fontFamilyRef.current, bold: boldRef.current, italic: italicRef.current, color: colorRef.current } as Shape
+            : s
+        ))
+      }
+    } else {
+      // Creating a new shape
+      if (!val) return
+      commit([...shapesRef.current, {
+        id: uid(), type: 'text',
+        x: textInput.wx, y: textInput.wy + size,
+        text: val, size, fontFamily: fontFamilyRef.current,
+        bold: boldRef.current, italic: italicRef.current,
+        color: colorRef.current, fill: 'none', width: 1,
+      } as TextShape])
+    }
   }, [textInput, commit])
 
   // ── Toolbar handlers ─────────────────────────────────────────────────────────
@@ -891,6 +977,7 @@ export function CanvasView() {
           onMouseMove={onMouseMove}
           onMouseUp={onMouseUp}
           onMouseLeave={onMouseUp}
+          onDoubleClick={onDoubleClick}
           onWheel={onWheel}
         />
 
@@ -939,6 +1026,7 @@ export function CanvasView() {
               fontFamily, fontWeight: bold ? 'bold' : 'normal', fontStyle: italic ? 'italic' : 'normal',
               color, caretColor: color, borderBottom: `1.5px solid ${color}`, minWidth: 80, zIndex: 50,
             }}
+            defaultValue={textInput?.initialValue ?? ''}
             onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); commitText() }; if (e.key === 'Escape') setTextInput(null) }}
             onBlur={commitText}
           />

@@ -491,6 +491,8 @@ export function Sidebar() {
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key !== "Backspace" && e.key !== "Delete") return;
+      // Let the canvas view handle its own deletions
+      if (activeView === 'canvas') return;
       const target = e.target as HTMLElement;
       if (
         target.tagName === "INPUT" ||
@@ -505,7 +507,7 @@ export function Sidebar() {
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [selectedNoteIds]);
+  }, [selectedNoteIds, activeView]);
 
   const pinnedNotes = notes.filter((n) => n.pinned);
   const rootNotes = notes.filter((n) => n.folder === null);
