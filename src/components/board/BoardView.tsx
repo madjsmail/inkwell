@@ -252,7 +252,7 @@ export function BoardView() {
   if (boards.length === 0) {
     return (
       <div className="flex-1 flex flex-col bg-background overflow-hidden min-w-0">
-        <div className="h-10 shrink-0 border-b border-border flex items-center px-4 gap-2">
+        <div className="h-10 shrink-0 border-b border-border flex items-center px-4 gap-2" data-tauri-drag-region>
           {!sidebarOpen && (
             <button
               className="w-7 h-7 flex items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-surface transition-colors"
@@ -283,7 +283,7 @@ export function BoardView() {
   return (
     <div className="flex-1 flex flex-col bg-background overflow-hidden min-w-0">
       {/* Top bar */}
-      <div className="h-10 shrink-0 border-b border-border flex items-center px-4 gap-3 relative">
+      <div className="h-10 shrink-0 border-b border-border flex items-center px-4 gap-3 relative" data-tauri-drag-region>
         {!sidebarOpen && (
           <button
             className="w-7 h-7 flex items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-surface transition-colors shrink-0"

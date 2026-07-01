@@ -30,7 +30,7 @@
  * Note.path   = absolute path to the .md file
  */
 
-import type { Folder, Note, Task, Board, BoardColumn, BoardTask, Attachment, LinkedItem } from '../types'
+import type { Folder, Note, Task, Board, BoardColumn, BoardTask, Attachment, LinkedItem, WeeklyPlan } from '../types'
 import { slugifyTitle } from './utils'
 
 const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
@@ -38,6 +38,7 @@ const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
 const INKWELL_DIR = '.inkwell'
 const APP_DATA_FILE = 'app.json'
 const BOARDS_FILE = 'boards.json'
+const PLANNER_FILE = 'planner.json'
 const RECENT_KEY = 'inkwell-recent-vaults'
 const LAST_VAULT_KEY = 'inkwell-last-vault'
 
@@ -362,6 +363,38 @@ export async function readBoardsFile(vaultPath: string): Promise<BoardsData | nu
     const filePath = `${vaultPath}/${INKWELL_DIR}/${BOARDS_FILE}`
     if (!await exists(filePath)) return null
     return JSON.parse(await readTextFile(filePath)) as BoardsData
+  } catch { return null }
+}
+
+// ── Planner data (~/.inkwell/planner.json) ────────────────────────────────────
+// Stored globally — independent of which vault is open, so tasks are always
+// visible regardless of which vault the user currently has selected.
+
+async function getGlobalPlannerPath(): Promise<string> {
+  const { homeDir, join } = await import('@tauri-apps/api/path')
+  const home = await homeDir()
+  return join(home, INKWELL_DIR, PLANNER_FILE)
+}
+
+export async function writePlannerFile(data: WeeklyPlan): Promise<void> {
+  if (!isTauri) return
+  try {
+    const { writeTextFile, mkdir } = await import('@tauri-apps/plugin-fs')
+    const { homeDir, join } = await import('@tauri-apps/api/path')
+    const home = await homeDir()
+    const dir  = await join(home, INKWELL_DIR)
+    await mkdir(dir, { recursive: true })
+    await writeTextFile(await getGlobalPlannerPath(), JSON.stringify(data, null, 2))
+  } catch (e) { console.error('Failed to write planner:', e) }
+}
+
+export async function readPlannerFile(): Promise<WeeklyPlan | null> {
+  if (!isTauri) return null
+  try {
+    const { readTextFile, exists } = await import('@tauri-apps/plugin-fs')
+    const filePath = await getGlobalPlannerPath()
+    if (!await exists(filePath)) return null
+    return JSON.parse(await readTextFile(filePath)) as WeeklyPlan
   } catch { return null }
 }
 

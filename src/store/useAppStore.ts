@@ -12,6 +12,8 @@ import type {
   BoardComment,
   LinkedItem,
   Attachment,
+  WeeklyPlan,
+  PlannerDay,
 } from "../types";
 import {
   extractTitleFromContent,
@@ -26,6 +28,8 @@ import {
   renameItem,
   writeNoteMeta,
   writeBoardsFile,
+  writePlannerFile,
+  readPlannerFile,
 } from "../lib/vault";
 
 // ─── Active-vault state file ──────────────────────────────────────────────────
@@ -159,6 +163,8 @@ interface AppState {
   setSidebarGlass: (enabled: boolean) => void;
   canvasEnabled: boolean;
   setCanvasEnabled: (enabled: boolean) => void;
+  plannerEnabled: boolean;
+  setPlannerEnabled: (enabled: boolean) => void;
   searchOpen: boolean;
   searchQuery: string;
   activeTaskId: string | null;
@@ -223,6 +229,11 @@ interface AppState {
   boardTasks: BoardTask[];
   activeBoardId: string | null;
   activeBoardTaskId: string | null;
+
+  // ─── Weekly Planner ─────────────────────────────────────────────────────────
+  plannerData: WeeklyPlan;
+  initPlanner: () => Promise<void>;
+  updatePlannerWeek: (weekKey: string, days: PlannerDay[]) => void;
 
   createBoard: (name: string) => void;
   deleteBoard: (id: string) => void;
@@ -499,6 +510,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   editorLineHeight: localStorage.getItem("inkwell-editor-lineHeight") ?? "1.7",
   sidebarGlass: localStorage.getItem("inkwell-sidebar-glass") === "true",
   canvasEnabled: localStorage.getItem("inkwell-canvas-enabled") === "true",
+  plannerEnabled: localStorage.getItem("inkwell-planner-enabled") !== "false",
   searchOpen: false,
   searchQuery: "",
   activeTaskId: null,
@@ -511,6 +523,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   boardTasks: [],
   activeBoardId: null,
   activeBoardTaskId: null,
+  plannerData: {},
 
   openVault: (path, data) => {
     // Flush boards to boards.json before switching vaults
@@ -747,8 +760,15 @@ export const useAppStore = create<AppState>((set, get) => ({
   setCanvasEnabled: (enabled) => {
     localStorage.setItem("inkwell-canvas-enabled", String(enabled));
     set({ canvasEnabled: enabled });
-    // If disabling while the canvas view is active, fall back to notes
     if (!enabled && get().activeView === "canvas") {
+      set({ activeView: "notes" });
+    }
+  },
+
+  setPlannerEnabled: (enabled) => {
+    localStorage.setItem("inkwell-planner-enabled", String(enabled));
+    set({ plannerEnabled: enabled });
+    if (!enabled && get().activeView === "planner") {
       set({ activeView: "notes" });
     }
   },
@@ -1555,5 +1575,18 @@ export const useAppStore = create<AppState>((set, get) => ({
     });
     const { vaultPath, boards, boardColumns, boardTasks } = get();
     flushBoards(vaultPath, boards, boardColumns, boardTasks);
+  },
+
+  // ─── Weekly Planner ─────────────────────────────────────────────────────────
+
+  initPlanner: async () => {
+    const data = await readPlannerFile();
+    if (data) set({ plannerData: data });
+  },
+
+  updatePlannerWeek: (weekKey, days) => {
+    const next = { ...get().plannerData, [weekKey]: days };
+    set({ plannerData: next });
+    writePlannerFile(next);
   },
 }));

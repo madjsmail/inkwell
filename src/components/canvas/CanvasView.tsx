@@ -4,7 +4,8 @@ import { useAppStore } from '../../store/useAppStore'
 import { CanvasToolbar, FONT_SANS } from './CanvasToolbar'
 import { CanvasNotesSheet } from './CanvasNotesSheet'
 import { CanvasTemplatesPicker } from './CanvasTemplatesPicker'
-import type { DiagramTemplate } from './canvasTemplates'
+import { CanvasCategoryPanel } from './CanvasCategoryPanel'
+import type { DiagramTemplate, TemplateCategory } from './canvasTemplates'
 import { uid, hitTest, shapeBounds } from './canvasTypes'
 import type { Shape, Tool, Point, PathShape, RectShape, EllipseShape, LineShape, ArrowShape, TextShape } from './canvasTypes'
 
@@ -41,7 +42,7 @@ function offsetShapes(shapes: Shape[], dx: number, dy: number): Shape[] {
       case 'rect':    return { ...s, x: (s as RectShape).x + dx, y: (s as RectShape).y + dy }
       case 'ellipse': return { ...s, cx: (s as EllipseShape).cx + dx, cy: (s as EllipseShape).cy + dy }
       case 'line':    return { ...s, x1: (s as LineShape).x1 + dx, y1: (s as LineShape).y1 + dy, x2: (s as LineShape).x2 + dx, y2: (s as LineShape).y2 + dy }
-      case 'arrow':   return { ...s, x1: (s as ArrowShape).x1 + dx, y1: (s as ArrowShape).y1 + dy, x2: (s as ArrowShape).x2 + dx, y2: (s as ArrowShape).y2 + dy }
+      case 'arrow': { const a = s as ArrowShape; return { ...a, x1: a.x1+dx, y1: a.y1+dy, x2: a.x2+dx, y2: a.y2+dy, ...(a.cpx !== undefined ? { cpx: a.cpx+dx, cpy: a.cpy!+dy } : {}) } }
       case 'text':    return { ...s, x: (s as TextShape).x + dx, y: (s as TextShape).y + dy }
       default:        return s
     }
@@ -78,7 +79,8 @@ function applyBoundsToShape(s: Shape, nb: { x: number; y: number; w: number; h: 
     case 'arrow': {
       const a = s as ArrowShape, b = shapeBounds(s)
       const sx = b.w > 1 ? w / b.w : 1, sy = b.h > 1 ? h / b.h : 1
-      return { ...a, x1: x + (a.x1 - b.x) * sx, y1: y + (a.y1 - b.y) * sy, x2: x + (a.x2 - b.x) * sx, y2: y + (a.y2 - b.y) * sy }
+      return { ...a, x1: x + (a.x1 - b.x) * sx, y1: y + (a.y1 - b.y) * sy, x2: x + (a.x2 - b.x) * sx, y2: y + (a.y2 - b.y) * sy,
+        ...(a.cpx !== undefined ? { cpx: x + (a.cpx - b.x) * sx, cpy: y + (a.cpy! - b.y) * sy } : {}) }
     }
     case 'text': {
       const t = s as TextShape, b = shapeBounds(t), scale = Math.max(w / Math.max(b.w, 1), h / Math.max(b.h, 1))
@@ -93,7 +95,7 @@ function offsetShape(s: Shape, dx: number, dy: number): Shape {
     case 'rect':    return { ...(s as RectShape),    x:  (s as RectShape).x  + dx, y:  (s as RectShape).y  + dy }
     case 'ellipse': return { ...(s as EllipseShape), cx: (s as EllipseShape).cx + dx, cy: (s as EllipseShape).cy + dy }
     case 'line':    return { ...(s as LineShape),    x1: (s as LineShape).x1  + dx, y1: (s as LineShape).y1  + dy, x2: (s as LineShape).x2  + dx, y2: (s as LineShape).y2  + dy }
-    case 'arrow':   return { ...(s as ArrowShape),   x1: (s as ArrowShape).x1 + dx, y1: (s as ArrowShape).y1 + dy, x2: (s as ArrowShape).x2 + dx, y2: (s as ArrowShape).y2 + dy }
+    case 'arrow': { const a = s as ArrowShape; return { ...a, x1: a.x1+dx, y1: a.y1+dy, x2: a.x2+dx, y2: a.y2+dy, ...(a.cpx !== undefined ? { cpx: a.cpx+dx, cpy: a.cpy!+dy } : {}) } }
     case 'text':    return { ...(s as TextShape),    x:  (s as TextShape).x   + dx, y:  (s as TextShape).y   + dy }
   }
 }
@@ -157,11 +159,18 @@ function drawShape(ctx: CanvasRenderingContext2D, s: Shape) {
       ctx.beginPath(); ctx.moveTo(l.x1, l.y1); ctx.lineTo(l.x2, l.y2); ctx.stroke(); break
     }
     case 'arrow': {
-      const a = s as ArrowShape, dx = a.x2 - a.x1, dy = a.y2 - a.y1
-      if (Math.hypot(dx, dy) < 1) break
-      const angle = Math.atan2(dy, dx), H = Math.max(14, a.width * 5)
+      const a = s as ArrowShape
+      if (Math.hypot(a.x2 - a.x1, a.y2 - a.y1) < 1) break
+      const cpx = a.cpx ?? (a.x1 + a.x2) / 2
+      const cpy = a.cpy ?? (a.y1 + a.y2) / 2
+      // Tangent at endpoint = direction from CP → endpoint
+      const angle = Math.atan2(a.y2 - cpy, a.x2 - cpx)
+      const H = Math.max(14, a.width * 5)
+      // Shaft: quadratic bezier, ending slightly before tip so head fits
       ctx.beginPath(); ctx.moveTo(a.x1, a.y1)
-      ctx.lineTo(a.x2 - H * 0.8 * Math.cos(angle), a.y2 - H * 0.8 * Math.sin(angle)); ctx.stroke()
+      ctx.quadraticCurveTo(cpx, cpy, a.x2 - H * 0.8 * Math.cos(angle), a.y2 - H * 0.8 * Math.sin(angle))
+      ctx.stroke()
+      // Arrowhead
       ctx.fillStyle = a.color; ctx.strokeStyle = a.color; ctx.lineWidth = 0.5
       ctx.beginPath(); ctx.moveTo(a.x2, a.y2)
       ctx.lineTo(a.x2 - H * Math.cos(angle - Math.PI / 6), a.y2 - H * Math.sin(angle - Math.PI / 6))
@@ -271,6 +280,7 @@ export function CanvasView() {
   const [showNotes,         setShowNotes]         = useState(false)
   const [notesContent,      setNotesContent]      = useState('')
   const [showTemplates,     setShowTemplates]     = useState(false)
+  const [categoryPanel,     setCategoryPanel]     = useState<TemplateCategory | null>(null)
 
   // ── Canvas content refs ──────────────────────────────────────────────────────
   const shapesRef      = useRef<Shape[]>([])
@@ -324,6 +334,10 @@ export function CanvasView() {
   const resizeStartPtRef     = useRef<Point>({ x: 0, y: 0 })
   const resizePreRef         = useRef<Shape[] | null>(null)
   const cursorRef            = useRef<string>('crosshair')
+
+  // Arrow bend (control point drag)
+  const isBendingRef  = useRef(false)
+  const bendPreRef    = useRef<Shape[] | null>(null)
 
   // Sync tool pref refs
   useEffect(() => { toolRef.current       = tool       }, [tool])
@@ -398,10 +412,52 @@ export function CanvasView() {
     }
     if (drawingRef.current) drawShape(ctx, drawingRef.current)
 
+    // Draw dashed group bounding boxes for any visible groups
+    const allGroupIds = new Set(shapesRef.current.map(s => s.groupId).filter(Boolean) as string[])
+    allGroupIds.forEach(gid => {
+      const members = shapesRef.current.filter(s => s.groupId === gid)
+      if (members.length < 2) return
+      const bs   = members.map(shapeBounds)
+      const gx   = Math.min(...bs.map(b => b.x))
+      const gy   = Math.min(...bs.map(b => b.y))
+      const gx2  = Math.max(...bs.map(b => b.x + b.w))
+      const gy2  = Math.max(...bs.map(b => b.y + b.h))
+      const pad  = 10
+      const groupSelected = members.some(s => selectedIdsRef.current.has(s.id))
+      ctx.save()
+      ctx.strokeStyle = groupSelected
+        ? getCSSColor('--accent', '#a78bfa')
+        : getCSSColor('--border', '#444')
+      ctx.lineWidth   = (groupSelected ? 1.5 : 1) / zoomRef.current
+      ctx.setLineDash([6 / zoomRef.current, 4 / zoomRef.current])
+      ctx.globalAlpha = groupSelected ? 0.8 : 0.35
+      ctx.strokeRect(gx - pad, gy - pad, gx2 - gx + pad * 2, gy2 - gy + pad * 2)
+      ctx.restore()
+    })
+
     // Selection overlay
     const selShapes = shapesRef.current.filter(s => selectedIdsRef.current.has(s.id))
     if (selShapes.length === 1) {
       drawSingleSelection(ctx, selShapes[0])
+      // Bend handle for selected arrows
+      if (selShapes[0].type === 'arrow') {
+        const a = selShapes[0] as ArrowShape
+        const cpx = a.cpx ?? (a.x1 + a.x2) / 2
+        const cpy = a.cpy ?? (a.y1 + a.y2) / 2
+        const r = 6 / zoomRef.current
+        ctx.save()
+        // Guide line from arrow midpoint to control point (only if bent)
+        if (a.cpx !== undefined) {
+          ctx.strokeStyle = '#f59e0b'; ctx.lineWidth = 1 / zoomRef.current
+          ctx.setLineDash([3 / zoomRef.current, 3 / zoomRef.current]); ctx.globalAlpha = 0.5
+          ctx.beginPath(); ctx.moveTo((a.x1 + a.x2) / 2, (a.y1 + a.y2) / 2); ctx.lineTo(cpx, cpy); ctx.stroke()
+          ctx.setLineDash([]); ctx.globalAlpha = 1
+        }
+        // Handle circle
+        ctx.fillStyle = '#1e293b'; ctx.strokeStyle = '#f59e0b'; ctx.lineWidth = 1.5 / zoomRef.current
+        ctx.beginPath(); ctx.arc(cpx, cpy, r, 0, Math.PI * 2); ctx.fill(); ctx.stroke()
+        ctx.restore()
+      }
     } else if (selShapes.length > 1) {
       drawMultiSelection(ctx, selShapes)
     }
@@ -537,7 +593,55 @@ export function CanvasView() {
       y: cssH / 2 - (fitY + bh / 2) * newZoom,
     }
     render()
+    // Open the category panel for the loaded template's category
+    setCategoryPanel(tpl.category)
   }, [commit, clearSelection, render])
+
+  // Append shapes from the category panel (no viewport pan, just append + offset)
+  const addCanvasShapes = useCallback((newShapes: Shape[]) => {
+    if (!newShapes.length) return
+    const bs   = newShapes.map(shapeBounds)
+    const minX = Math.min(...bs.map(b => b.x))
+    let offsetted = newShapes
+    if (shapesRef.current.length > 0) {
+      const existBounds = shapesRef.current.map(shapeBounds)
+      const existMaxX   = Math.max(...existBounds.map(b => b.x + b.w))
+      const dx          = existMaxX + 80 - minX
+      offsetted = offsetShapes(newShapes, dx, 0)
+    }
+    commit([...shapesRef.current, ...offsetted])
+    clearSelection()
+    render()
+  }, [commit, clearSelection, render])
+
+  // ── Group / Ungroup ──────────────────────────────────────────────────────────
+
+  const groupSelected = useCallback(() => {
+    if (selectedIdsRef.current.size < 2) return
+    const gid  = uid()
+    commit(shapesRef.current.map(s =>
+      selectedIdsRef.current.has(s.id) ? { ...s, groupId: gid } : s
+    ))
+  }, [commit])
+
+  const ungroupSelected = useCallback(() => {
+    if (!selectedIdsRef.current.size) return
+    // Collect all groupIds referenced by the current selection
+    const groupIds = new Set(
+      shapesRef.current
+        .filter(s => selectedIdsRef.current.has(s.id) && s.groupId)
+        .map(s => s.groupId!)
+    )
+    if (!groupIds.size) return
+    commit(shapesRef.current.map(s => {
+      if (s.groupId && groupIds.has(s.groupId)) {
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { groupId: _g, ...rest } = s
+        return rest as Shape
+      }
+      return s
+    }))
+  }, [commit])
 
   // ── Coord ────────────────────────────────────────────────────────────────────
 
@@ -579,13 +683,35 @@ export function CanvasView() {
         }
       }
 
-      // 2. Shape hit
+      // 2. Bend handle hit (single selected arrow)
+      if (selectedIdsRef.current.size === 1) {
+        const [bid] = [...selectedIdsRef.current]
+        const bshape = shapesRef.current.find(s => s.id === bid)
+        if (bshape && bshape.type === 'arrow') {
+          const a = bshape as ArrowShape
+          const cpx = a.cpx ?? (a.x1 + a.x2) / 2
+          const cpy = a.cpy ?? (a.y1 + a.y2) / 2
+          if (Math.hypot(wp.x - cpx, wp.y - cpy) < 10 / zoomRef.current) {
+            isBendingRef.current = true; bendPreRef.current = [...shapesRef.current]
+            updateCursor('crosshair'); render(); return
+          }
+        }
+      }
+
+      // 3. Shape hit
       const hit = [...shapesRef.current].reverse().find(s => hitTest(s, wp.x, wp.y)) ?? null
       if (hit) {
+        // Expand selection to entire group if the hit shape belongs to one
+        const groupIds = hit.groupId
+          ? new Set(shapesRef.current.filter(s => s.groupId === hit.groupId).map(s => s.id))
+          : new Set([hit.id])
+
         if (shiftRef.current) {
-          // Shift+click: toggle
+          // Shift+click: toggle entire group
           const next = new Set(selectedIdsRef.current)
-          if (next.has(hit.id)) { next.delete(hit.id) } else { next.add(hit.id) }
+          const allSelected = [...groupIds].every(id => next.has(id))
+          if (allSelected) { groupIds.forEach(id => next.delete(id)) }
+          else              { groupIds.forEach(id => next.add(id)) }
           setSelection(next)
         } else if (selectedIdsRef.current.has(hit.id)) {
           // Click already-selected shape: drag all selected
@@ -593,8 +719,8 @@ export function CanvasView() {
           isDraggingRef.current = true
           dragOriginRef.current = wp
         } else {
-          // Click unselected shape: select it, start drag
-          setSelection(new Set([hit.id]))
+          // Click unselected shape: select it (+ group mates), start drag
+          setSelection(groupIds)
           preDragRef.current    = [...shapesRef.current]
           isDraggingRef.current = true
           dragOriginRef.current = wp
@@ -650,6 +776,15 @@ export function CanvasView() {
       nb.w = Math.max(nb.w, MIN); nb.h = Math.max(nb.h, MIN)
       const [id] = [...selectedIdsRef.current]
       shapesRef.current = shapesRef.current.map(s => s.id === id ? applyBoundsToShape(s, nb) as Shape : s)
+      render(); return
+    }
+
+    // Bend arrow control point
+    if (isBendingRef.current && selectedIdsRef.current.size === 1) {
+      const [bid] = [...selectedIdsRef.current]
+      shapesRef.current = shapesRef.current.map(s =>
+        s.id === bid && s.type === 'arrow' ? { ...s, cpx: wp.x, cpy: wp.y } as Shape : s
+      )
       render(); return
     }
 
@@ -709,6 +844,15 @@ export function CanvasView() {
       const [id] = [...selectedIdsRef.current]
       const shape = shapesRef.current.find(s => s.id === id)
       if (shape) {
+        // Arrow bend handle
+        if (shape.type === 'arrow') {
+          const a = shape as ArrowShape
+          const cpx = a.cpx ?? (a.x1 + a.x2) / 2
+          const cpy = a.cpy ?? (a.y1 + a.y2) / 2
+          if (Math.hypot(wp.x - cpx, wp.y - cpy) < 10 / zoomRef.current) {
+            updateCursor('grab'); return
+          }
+        }
         const handle = getHandleAt(shape, wp, 10 / zoomRef.current)
         updateCursor(handle ? (handle === 'tl' || handle === 'br' ? 'nwse-resize' : 'nesw-resize') : 'default')
         return
@@ -720,6 +864,17 @@ export function CanvasView() {
 
   const onMouseUp = useCallback(() => {
     if (isPanningRef.current) { isPanningRef.current = false; return }
+
+    // Finish bend
+    if (isBendingRef.current) {
+      isBendingRef.current = false; updateCursor('default')
+      if (bendPreRef.current) {
+        historyRef.current = [...historyRef.current, bendPreRef.current]
+        futureRef.current = []; bendPreRef.current = null
+        setCanUndo(true); setCanRedo(false); scheduleSave()
+      }
+      return
+    }
 
     // Finish resize
     if (resizingRef.current) {
@@ -751,16 +906,22 @@ export function CanvasView() {
       const rw = Math.abs(p2.x - p1.x), rh = Math.abs(p2.y - p1.y)
       if (rw > 4 || rh > 4) {
         const rx = Math.min(p1.x, p2.x), ry = Math.min(p1.y, p2.y)
-        const hit = shapesRef.current.filter(s => {
+        const directHit = shapesRef.current.filter(s => {
           const b = shapeBounds(s)
           return b.x < rx + rw && b.x + b.w > rx && b.y < ry + rh && b.y + b.h > ry
         })
+        // Expand to include all group mates of any directly-hit shape
+        const hitGroupIds = new Set(directHit.map(s => s.groupId).filter(Boolean) as string[])
+        const expanded = new Set([
+          ...directHit.map(s => s.id),
+          ...shapesRef.current.filter(s => s.groupId && hitGroupIds.has(s.groupId)).map(s => s.id),
+        ])
         if (shiftRef.current) {
           const next = new Set(selectedIdsRef.current)
-          hit.forEach(s => next.add(s.id))
+          expanded.forEach(id => next.add(id))
           setSelection(next)
         } else {
-          setSelection(new Set(hit.map(s => s.id)))
+          setSelection(expanded)
         }
       }
       render(); return
@@ -778,7 +939,20 @@ export function CanvasView() {
   // ── Double-click: edit existing text shape ───────────────────────────────────
 
   const onDoubleClick = useCallback((e: React.MouseEvent) => {
-    const wp  = toWorld(e)
+    const wp = toWorld(e)
+
+    // Double-click a bent arrow → straighten it
+    const hitArrow = [...shapesRef.current].reverse().find(
+      s => s.type === 'arrow' && (s as ArrowShape).cpx !== undefined && hitTest(s, wp.x, wp.y)
+    ) as ArrowShape | undefined
+    if (hitArrow) {
+      e.preventDefault()
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { cpx: _cx, cpy: _cy, ...rest } = hitArrow
+      commit(shapesRef.current.map(s => s.id === hitArrow.id ? rest as Shape : s))
+      return
+    }
+
     const hit = [...shapesRef.current].reverse().find(
       s => s.type === 'text' && hitTest(s, wp.x, wp.y)
     ) as TextShape | undefined
@@ -838,6 +1012,8 @@ export function CanvasView() {
       if (ev.code === 'Space' && !inInput) { ev.preventDefault(); isSpaceRef.current = true; setSpacePan(true); updateCursor('grab') }
       if (!inInput && (ev.metaKey || ev.ctrlKey) && !ev.shiftKey && ev.key === 'z') { ev.preventDefault(); undo() }
       if (!inInput && (ev.metaKey || ev.ctrlKey) && ev.shiftKey  && ev.key === 'z') { ev.preventDefault(); redo() }
+      if (!inInput && (ev.metaKey || ev.ctrlKey) && !ev.shiftKey && ev.key === 'g') { ev.preventDefault(); groupSelected() }
+      if (!inInput && (ev.metaKey || ev.ctrlKey) && ev.shiftKey  && ev.key === 'g') { ev.preventDefault(); ungroupSelected() }
 
       if (!inInput) {
         // Delete all selected
@@ -969,6 +1145,8 @@ export function CanvasView() {
 
       {/* ── Canvas area ── */}
       <div ref={containerRef} className="relative h-full overflow-hidden flex-1">
+        {/* Window drag strip — sits above canvas (z-10) but below toolbar buttons (z-20) */}
+        <div className="absolute top-0 left-0 right-0 h-8 z-10" data-tauri-drag-region />
         <canvas
           ref={canvasRef}
           className="absolute inset-0 touch-none"
@@ -999,6 +1177,15 @@ export function CanvasView() {
           <CanvasTemplatesPicker
             onSelect={loadTemplate}
             onClose={() => setShowTemplates(false)}
+          />
+        )}
+
+        {/* Category element panel */}
+        {categoryPanel && !showTemplates && (
+          <CanvasCategoryPanel
+            category={categoryPanel}
+            onAdd={addCanvasShapes}
+            onClose={() => setCategoryPanel(null)}
           />
         )}
 

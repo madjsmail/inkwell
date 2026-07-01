@@ -6,6 +6,7 @@ import { NoteList } from './NoteList'
 import { EditorPane } from './EditorPane'
 import { BoardView } from '../board/BoardView'
 import { CanvasView } from '../canvas/CanvasView'
+import { WeeklyPlannerView } from '../planner/WeeklyPlannerView'
 import { SearchOverlay } from '../shared/SearchOverlay'
 import { NamePromptDialog } from '../shared/NamePromptDialog'
 import { ConfirmDialog } from '../shared/ConfirmDialog'
@@ -16,7 +17,7 @@ import { readVaultFS, writeAppData, readAppData, addRecentVault, getLastVaultPat
 import type { AppData } from '../../lib/vault'
 
 export function AppShell() {
-  const { activeView, setSearchOpen, vaultPath, openVault, toggleSidebar, sidebarOpen } = useAppStore()
+  const { activeView, setSearchOpen, vaultPath, openVault, toggleSidebar, sidebarOpen, initPlanner } = useAppStore()
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Restore theme from localStorage on mount
@@ -56,6 +57,12 @@ export function AppShell() {
         invoke('set_vibrancy', { enabled: true }).catch(console.error)
       })
     }
+  }, [])
+
+  // Load planner data from global app storage on startup (vault-independent)
+  useEffect(() => {
+    initPlanner()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // Attempt to restore last opened vault on startup
@@ -166,6 +173,8 @@ export function AppShell() {
       {activeView === 'board' && <BoardView />}
 
       {activeView === 'canvas' && <CanvasView />}
+
+      {activeView === 'planner' && <WeeklyPlannerView />}
 
       {activeView === 'trash' && (
         <div className="flex-1 flex items-center justify-center bg-panel">

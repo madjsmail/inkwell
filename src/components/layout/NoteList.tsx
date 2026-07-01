@@ -15,7 +15,6 @@ export function NoteList() {
     selectedFolderId,
     pinNote,
     moveNotes,
-    sidebarOpen,
   } = useAppStore()
   const [sortBy, setSortBy] = useState<'date' | 'name'>('date')
   const [showPinned, setShowPinned] = useState(false)
@@ -56,15 +55,12 @@ export function NoteList() {
 
   return (
     <div className="w-[280px] shrink-0 flex flex-col bg-background border-r border-border h-full overflow-hidden">
-      {/* Spacer for macOS traffic lights when sidebar is hidden */}
-      {!sidebarOpen && (
-        <div className="h-8 shrink-0" data-tauri-drag-region />
-      )}
       <div
         className={cn(
           'h-10 flex items-center justify-between px-3 border-b border-border shrink-0 transition-colors',
           dragOverFolderId === (selectedFolderId ?? '__root__') && 'bg-accent/10 ring-inset ring-1 ring-accent'
         )}
+        data-tauri-drag-region
         onDragOver={e => {
           e.preventDefault()
           e.dataTransfer.dropEffect = 'move'

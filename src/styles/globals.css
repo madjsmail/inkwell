@@ -7,6 +7,23 @@ html, body, #root {
   background: transparent !important;
 }
 
+/* Window drag regions — WebKit native approach, works without IPC permissions */
+[data-tauri-drag-region] {
+  -webkit-app-region: drag;
+  user-select: none;
+  cursor: default;
+}
+
+/* Interactive children inside drag regions must opt out so they stay clickable */
+[data-tauri-drag-region] button,
+[data-tauri-drag-region] a,
+[data-tauri-drag-region] input,
+[data-tauri-drag-region] select,
+[data-tauri-drag-region] textarea,
+[data-tauri-drag-region] [data-tauri-no-drag] {
+  -webkit-app-region: no-drag;
+}
+
 @layer base {
   :root {
     --background:        40 20% 97%;

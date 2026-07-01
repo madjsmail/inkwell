@@ -10,6 +10,7 @@ import {
   Search,
   PenLine,
   PenSquare,
+  CalendarDays,
 } from "lucide-react";
 import { SettingsDialog } from '../settings/SettingsDialog'
 import {
@@ -461,6 +462,7 @@ export function Sidebar() {
     clearFolderSelection,
     sidebarGlass,
     canvasEnabled,
+    plannerEnabled,
   } = useAppStore();
 
   // ── Inline rename state ─────────────────────────────────────────────────────
@@ -813,7 +815,7 @@ export function Sidebar() {
           sidebarGlass ? "backdrop-blur-2xl bg-sidebar/50" : "bg-sidebar",
         )}
       >
-        <div className="pt-8" />
+        <div className="h-8 shrink-0" data-tauri-drag-region />
 
         <div className="flex items-center justify-between px-3 pb-2">
           <span className="font-sans text-lg font-semibold text-foreground tracking-tight">
@@ -1001,6 +1003,35 @@ export function Sidebar() {
                 Board
               </span>
             </div>
+
+            {plannerEnabled && (
+              <div
+                className={cn(
+                  treeRowClass,
+                  "px-2 cursor-pointer hover:bg-surface",
+                  activeView === "planner" && "bg-active",
+                )}
+                onClick={() => setActiveView("planner")}
+              >
+                <CalendarDays
+                  className={cn(
+                    "w-3.5 h-3.5",
+                    activeView === "planner"
+                      ? "text-accent"
+                      : "text-muted-foreground",
+                  )}
+                />
+                <span
+                  className={cn(
+                    activeView === "planner"
+                      ? "text-accent font-medium"
+                      : "text-foreground",
+                  )}
+                >
+                  Planner
+                </span>
+              </div>
+            )}
             {canvasEnabled && (
               <div
                 className={cn(

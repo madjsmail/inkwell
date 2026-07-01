@@ -68,6 +68,7 @@ export function SettingsDialog() {
     setEditorSettings,
     sidebarGlass, setSidebarGlass,
     canvasEnabled, setCanvasEnabled,
+    plannerEnabled, setPlannerEnabled,
   } = useAppStore()
 
   const handleSaveCustomTheme = (t: CustomTheme) => {
@@ -394,6 +395,28 @@ export function SettingsDialog() {
                         className={cn(
                           'absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow-sm transition-transform',
                           canvasEnabled ? 'translate-x-4' : 'translate-x-0',
+                        )}
+                      />
+                    </button>
+                  </SettingRow>
+
+                  <SettingRow
+                    label="Planner"
+                    description="Daily task planner with week navigation — add a Planner page to the sidebar"
+                  >
+                    <button
+                      role="switch"
+                      aria-checked={plannerEnabled}
+                      onClick={() => setPlannerEnabled(!plannerEnabled)}
+                      className={cn(
+                        'relative w-9 h-5 rounded-full transition-colors shrink-0',
+                        plannerEnabled ? 'bg-accent' : 'bg-border',
+                      )}
+                    >
+                      <span
+                        className={cn(
+                          'absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow-sm transition-transform',
+                          plannerEnabled ? 'translate-x-4' : 'translate-x-0',
                         )}
                       />
                     </button>

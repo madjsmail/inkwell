@@ -7,13 +7,14 @@ interface Base {
   color: string
   fill: string
   width: number
+  groupId?: string   // shapes sharing the same groupId are treated as one group
 }
 
 export interface PathShape    extends Base { type: 'path';    pts: Point[] }
 export interface RectShape    extends Base { type: 'rect';    x: number; y: number; w: number; h: number; radius: number }
 export interface EllipseShape extends Base { type: 'ellipse'; cx: number; cy: number; rx: number; ry: number }
 export interface LineShape    extends Base { type: 'line';    x1: number; y1: number; x2: number; y2: number }
-export interface ArrowShape   extends Base { type: 'arrow';   x1: number; y1: number; x2: number; y2: number }
+export interface ArrowShape   extends Base { type: 'arrow';   x1: number; y1: number; x2: number; y2: number; cpx?: number; cpy?: number }
 export interface TextShape    extends Base {
   type: 'text'
   x: number; y: number
@@ -42,10 +43,16 @@ export function shapeBounds(s: Shape): { x: number; y: number; w: number; h: num
       return { x: Math.min(s.x, s.x + s.w), y: Math.min(s.y, s.y + s.h), w: Math.abs(s.w) || 1, h: Math.abs(s.h) || 1 }
     case 'ellipse':
       return { x: s.cx - Math.abs(s.rx), y: s.cy - Math.abs(s.ry), w: Math.abs(s.rx) * 2 || 1, h: Math.abs(s.ry) * 2 || 1 }
-    case 'line':
-    case 'arrow': {
+    case 'line': {
       const x = Math.min(s.x1, s.x2), y = Math.min(s.y1, s.y2)
       return { x, y, w: Math.abs(s.x2 - s.x1) || 1, h: Math.abs(s.y2 - s.y1) || 1 }
+    }
+    case 'arrow': {
+      const a = s as ArrowShape
+      const xs = [a.x1, a.x2], ys = [a.y1, a.y2]
+      if (a.cpx !== undefined) { xs.push(a.cpx); ys.push(a.cpy!) }
+      const x = Math.min(...xs), y = Math.min(...ys)
+      return { x, y, w: Math.max(...xs) - x || 1, h: Math.max(...ys) - y || 1 }
     }
     case 'text':
       return { x: s.x, y: s.y - s.size, w: Math.max(s.text.length * s.size * 0.55, 20), h: s.size * 1.3 }
