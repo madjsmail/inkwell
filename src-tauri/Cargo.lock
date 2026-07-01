@@ -1733,7 +1733,7 @@ dependencies = [
 
 [[package]]
 name = "inkwell"
-version = "0.4.8"
+version = "0.5.3"
 dependencies = [
  "serde",
  "serde_json",
