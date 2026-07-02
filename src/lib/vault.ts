@@ -531,3 +531,44 @@ export function removeRecentVault(path: string): void {
 export function getLastVaultPath(): string | null {
   return localStorage.getItem(LAST_VAULT_KEY)
 }
+
+// ── Quick note capture ────────────────────────────────────────────────────────
+// Notes captured from the global Cmd+N popup are written straight to disk in
+// a "Quick Notes" folder inside the chosen vault, independent of whether that
+// vault is the one currently open in the main window.
+
+const QUICK_NOTES_FOLDER = 'Quick Notes'
+
+export async function saveQuickNote(vaultPath: string, text: string): Promise<Note> {
+  const trimmed = text.trim()
+  // Prefer a markdown "# Heading" as the title (same convention the rest of
+  // the vault uses); otherwise fall back to the first line of plain text.
+  const headingMatch = trimmed.match(/^#{1,6}\s+(.+)$/m)
+  const firstLine = (headingMatch ? headingMatch[1] : trimmed.split('\n')[0])?.trim() ?? ''
+  const title = firstLine.slice(0, 80) || 'Quick Note'
+  const now = new Date()
+  const id = `note-${now.getTime()}-${Math.random().toString(36).slice(2, 8)}`
+  const filename = `${slugifyTitle(title)}-${now.getTime()}.md`
+  const dir = `${vaultPath}/${QUICK_NOTES_FOLDER}`
+  const path = `${dir}/${filename}`
+
+  await createFolderDir(dir)
+
+  const note: Note = {
+    id,
+    title,
+    content: trimmed,
+    path,
+    folder: QUICK_NOTES_FOLDER,
+    tags: [],
+    pinned: false,
+    createdAt: now,
+    updatedAt: now,
+    wordCount: trimmed.split(/\s+/).filter(Boolean).length,
+    attachments: [],
+    linkedItems: [],
+  }
+
+  await writeNoteFile(note)
+  return note
+}
