@@ -688,6 +688,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       document.documentElement.dataset.theme = name;
     }
     localStorage.setItem("inkwell-theme", name);
+    localStorage.setItem(dark ? "inkwell-last-dark-theme" : "inkwell-last-light-theme", name);
     set({ themeName: name, theme: dark ? "dark" : "light" });
   },
 
@@ -695,12 +696,22 @@ export const useAppStore = create<AppState>((set, get) => ({
     const { themeName, customThemes } = get();
     const custom = customThemes.find((t) => t.id === themeName);
     const dark = custom ? custom.dark : isDarkTheme(themeName);
-    const next = dark ? "parchment" : "midnight";
-    clearCustomThemeVars();
-    document.documentElement.classList.toggle("dark", false);
-    document.documentElement.dataset.theme = next;
+    const next = dark
+      ? (localStorage.getItem("inkwell-last-light-theme") ?? "parchment")
+      : (localStorage.getItem("inkwell-last-dark-theme") ?? "midnight");
+    const nextCustom = get().customThemes.find((t) => t.id === next);
+    const nextDark = nextCustom ? nextCustom.dark : isDarkTheme(next);
+    document.documentElement.classList.toggle("dark", nextDark);
+    if (nextCustom) {
+      delete document.documentElement.dataset.theme;
+      applyCustomThemeVars(deriveThemeVars(nextCustom.colors, nextDark));
+    } else {
+      clearCustomThemeVars();
+      document.documentElement.dataset.theme = next;
+    }
     localStorage.setItem("inkwell-theme", next);
-    set({ themeName: next, theme: isDarkTheme(next) ? "dark" : "light" });
+    localStorage.setItem(nextDark ? "inkwell-last-dark-theme" : "inkwell-last-light-theme", next);
+    set({ themeName: next, theme: nextDark ? "dark" : "light" });
   },
 
   saveCustomTheme: (theme) => {
@@ -1074,7 +1085,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 
     // New id = parent prefix + new slug
     const parentPrefix = folder.parentId ? `${folder.parentId}/` : ''
-    const newId   = `${parentPrefix}${trimmed}`
+    const newId = `${parentPrefix}${trimmed}`
     const newPath = vaultPath ? `${vaultPath}/${newId}` : newId
 
     if (folder.path !== newPath) {
@@ -1191,11 +1202,11 @@ export const useAppStore = create<AppState>((set, get) => ({
       tasks: s.tasks.map((t) =>
         t.id === taskId
           ? {
-              ...t,
-              subtasks: t.subtasks.map((st: Subtask) =>
-                st.id === subtaskId ? { ...st, completed: !st.completed } : st,
-              ),
-            }
+            ...t,
+            subtasks: t.subtasks.map((st: Subtask) =>
+              st.id === subtaskId ? { ...st, completed: !st.completed } : st,
+            ),
+          }
           : t,
       ),
     }));
@@ -1244,9 +1255,9 @@ export const useAppStore = create<AppState>((set, get) => ({
       n.id !== noteId
         ? n
         : {
-            ...n,
-            linkedItems: (n.linkedItems ?? []).filter((l) => l.id !== itemId),
-          };
+          ...n,
+          linkedItems: (n.linkedItems ?? []).filter((l) => l.id !== itemId),
+        };
     set((s) => {
       const notes = s.notes.map(updateNote);
       const updated = notes.find((n) => n.id === noteId);
@@ -1289,11 +1300,11 @@ export const useAppStore = create<AppState>((set, get) => ({
       n.id !== noteId
         ? n
         : {
-            ...n,
-            attachments: (n.attachments ?? []).filter(
-              (a) => a.id !== attachmentId,
-            ),
-          };
+          ...n,
+          attachments: (n.attachments ?? []).filter(
+            (a) => a.id !== attachmentId,
+          ),
+        };
     set((s) => {
       const notes = s.notes.map(updateNote);
       const updated = notes.find((n) => n.id === noteId);
@@ -1501,11 +1512,11 @@ export const useAppStore = create<AppState>((set, get) => ({
       boardTasks: s.boardTasks.map((t) =>
         t.id === taskId
           ? {
-              ...t,
-              subtasks: t.subtasks.map((st) =>
-                st.id === subtaskId ? { ...st, completed: !st.completed } : st,
-              ),
-            }
+            ...t,
+            subtasks: t.subtasks.map((st) =>
+              st.id === subtaskId ? { ...st, completed: !st.completed } : st,
+            ),
+          }
           : t,
       ),
     }));
