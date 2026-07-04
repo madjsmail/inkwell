@@ -1,10 +1,9 @@
-import type { EditorView } from '@codemirror/view'
-import { EditorSelection } from '@codemirror/state'
 import { Image, Upload, Paperclip } from 'lucide-react'
 import { useEditorViewRef } from './EditorViewContext'
 import { useAppStore } from '../../store/useAppStore'
 import { pickAndCopyImage } from '../../lib/images'
 import { pickAndCopyAttachment, makeAttachmentMarkdown } from '../../lib/attachments'
+import { applyInlineFormat, applyBlockFormat, insertAtCursor } from '../../lib/editorFormatting'
 
 const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
 
@@ -28,66 +27,6 @@ const TOOLBAR_ITEMS: Array<{
   { label: 'H2', title: 'Heading 2', className: '', action: { type: 'block', prefix: '## ' } },
   { label: 'H3', title: 'Heading 3', className: '', action: { type: 'block', prefix: '### ' } },
 ]
-
-function applyInlineFormat(view: EditorView, prefix: string, suffix: string) {
-  const { state } = view
-  const changes = state.changeByRange(range => {
-    const selected = state.sliceDoc(range.from, range.to)
-    // Toggle off if already wrapped
-    if (selected.startsWith(prefix) && selected.endsWith(suffix) && selected.length > prefix.length + suffix.length) {
-      const inner = selected.slice(prefix.length, selected.length - suffix.length)
-      return {
-        changes: { from: range.from, to: range.to, insert: inner },
-        range: EditorSelection.range(range.from, range.from + inner.length),
-      }
-    }
-    const insert = prefix + selected + suffix
-    return {
-      changes: { from: range.from, to: range.to, insert },
-      range: EditorSelection.range(range.from + prefix.length, range.from + prefix.length + selected.length),
-    }
-  })
-  view.dispatch(changes)
-  view.focus()
-}
-
-function applyBlockFormat(view: EditorView, prefix: string) {
-  const { state } = view
-  const changes = state.changeByRange(range => {
-    const line = state.doc.lineAt(range.from)
-    const lineText = line.text
-
-    // Toggle off if the line already starts with this prefix
-    if (lineText.startsWith(prefix)) {
-      const stripped = lineText.slice(prefix.length)
-      const delta = -prefix.length
-      return {
-        changes: { from: line.from, to: line.to, insert: stripped },
-        range: EditorSelection.range(range.from + delta, range.head + delta),
-      }
-    }
-
-    // Remove any existing heading prefix first
-    const withoutPrefix = lineText.replace(/^#{1,6} /, '')
-    const insert = prefix + withoutPrefix
-    const delta = insert.length - withoutPrefix.length
-    return {
-      changes: { from: line.from, to: line.to, insert },
-      range: EditorSelection.range(range.from + delta, range.head + delta),
-    }
-  })
-  view.dispatch(changes)
-  view.focus()
-}
-
-function insertAtCursor(view: EditorView, text: string) {
-  const cursor = view.state.selection.main.head
-  view.dispatch({
-    changes: { from: cursor, to: cursor, insert: text },
-    selection: { anchor: cursor + text.length },
-  })
-  view.focus()
-}
 
 export function EditorToolbar() {
   const viewRef = useEditorViewRef()

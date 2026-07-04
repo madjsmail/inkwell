@@ -1,15 +1,15 @@
-import { useEffect, useRef } from 'react'
-import { EditorState } from '@codemirror/state'
-import { EditorView, keymap } from '@codemirror/view'
-import { defaultKeymap, history, historyKeymap } from '@codemirror/commands'
-import { markdown, markdownLanguage } from '@codemirror/lang-markdown'
-import { useAppStore } from '../../store/useAppStore'
-import { saveNote } from '../../lib/fs'
+import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
+import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
+import { EditorState } from '@codemirror/state';
+import { EditorView, keymap } from '@codemirror/view';
+import { useEffect, useRef } from 'react';
+import { saveNote } from '../../lib/fs';
+import { useAppStore } from '../../store/useAppStore';
 
-import { markdownHighlighting, slashCommandCompletion, highlightMarkPlugin, tablePlugin, createFileEmbedPlugin } from '../../lib/editorExtensions'
-import { searchHighlightExtension } from '../../lib/searchHighlightExtension'
-import { useEditorViewRef } from './EditorViewContext'
-import { deleteAttachmentFile } from '../../lib/attachments'
+import { deleteAttachmentFile } from '../../lib/attachments';
+import { createFileEmbedPlugin, highlightMarkPlugin, keymapConfig, markdownHighlighting, markdownKeymap, slashCommandCompletion, tablePlugin } from '../../lib/editorExtensions';
+import { searchHighlightExtension } from '../../lib/searchHighlightExtension';
+import { useEditorViewRef } from './EditorViewContext';
 
 interface MarkdownEditorProps {
   noteId: string
@@ -144,7 +144,7 @@ export function MarkdownEditor({ noteId, content }: MarkdownEditorProps) {
       doc: content,
       extensions: [
         history(),
-        keymap.of([...defaultKeymap, ...historyKeymap]),
+        keymap.of([...defaultKeymap, ...historyKeymap, ...markdownKeymap]),
         markdown({ base: markdownLanguage }),
         markdownHighlighting,
         highlightMarkPlugin,
