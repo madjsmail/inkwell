@@ -17,16 +17,16 @@ const TOOLBAR_ITEMS: Array<{
   className: string
   action: FormatAction
 } | null> = [
-  { label: 'B', title: 'Bold', className: 'font-bold', action: { type: 'inline', prefix: '**', suffix: '**' } },
-  { label: 'I', title: 'Italic', className: 'italic', action: { type: 'inline', prefix: '_', suffix: '_' } },
-  { label: 'U', title: 'Underline', className: 'underline', action: { type: 'inline', prefix: '<u>', suffix: '</u>' } },
-  { label: 'S', title: 'Strikethrough', className: 'line-through', action: { type: 'inline', prefix: '~~', suffix: '~~' } },
-  { label: '</>', title: 'Inline Code', className: 'font-mono text-[11px]', action: { type: 'inline', prefix: '`', suffix: '`' } },
-  null,
-  { label: 'H1', title: 'Heading 1', className: '', action: { type: 'block', prefix: '# ' } },
-  { label: 'H2', title: 'Heading 2', className: '', action: { type: 'block', prefix: '## ' } },
-  { label: 'H3', title: 'Heading 3', className: '', action: { type: 'block', prefix: '### ' } },
-]
+    { label: 'B', title: 'Bold', className: 'font-bold', action: { type: 'inline', prefix: '**', suffix: '**' } },
+    { label: 'I', title: 'Italic', className: 'italic', action: { type: 'inline', prefix: '_', suffix: '_' } },
+    { label: 'U', title: 'Underline', className: 'underline', action: { type: 'inline', prefix: '<u>', suffix: '</u>' } },
+    { label: 'S', title: 'Strikethrough', className: 'line-through', action: { type: 'inline', prefix: '~~', suffix: '~~' } },
+    { label: '</>', title: 'Inline Code', className: 'font-mono text-[11px]', action: { type: 'inline', prefix: '`', suffix: '`' } },
+    null,
+    { label: 'H1', title: 'Heading 1', className: '', action: { type: 'block', prefix: '# ' } },
+    { label: 'H2', title: 'Heading 2', className: '', action: { type: 'block', prefix: '## ' } },
+    { label: 'H3', title: 'Heading 3', className: '', action: { type: 'block', prefix: '### ' } },
+  ]
 
 export function EditorToolbar() {
   const viewRef = useEditorViewRef()
@@ -77,7 +77,7 @@ export function EditorToolbar() {
     const cursor = view.state.selection.main.head
     const line = view.state.doc.lineAt(cursor)
     // Ensure the embed is on its own line
-    const needsLeading  = cursor !== line.from || line.text.trim().length > 0
+    const needsLeading = cursor !== line.from || line.text.trim().length > 0
     const snippet = (needsLeading ? '\n' : '') + makeAttachmentMarkdown(attachment) + '\n'
     insertAtCursor(view, snippet)
   }

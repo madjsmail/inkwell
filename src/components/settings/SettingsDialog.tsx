@@ -68,8 +68,14 @@ export function SettingsDialog() {
     setEditorSettings,
     sidebarGlass, setSidebarGlass,
     canvasEnabled, setCanvasEnabled,
+    canvasLinkedVaultPath, setCanvasLinkedVaultPath,
     plannerEnabled, setPlannerEnabled,
   } = useAppStore()
+
+  const handleLinkCanvasVault = async () => {
+    const path = await pickVaultDirectory()
+    if (path) setCanvasLinkedVaultPath(path)
+  }
 
   const handleSaveCustomTheme = (t: CustomTheme) => {
     saveCustomTheme(t)
@@ -399,6 +405,33 @@ export function SettingsDialog() {
                       />
                     </button>
                   </SettingRow>
+
+                  {canvasEnabled && (
+                    <SettingRow
+                      label="Canvas storage"
+                      description={
+                        canvasLinkedVaultPath
+                          ? `Linked to ${canvasLinkedVaultPath.split('/').pop()} — drawings are stored in that vault`
+                          : 'Not linked to a vault — drawings are stored globally and stay the same across every vault'
+                      }
+                    >
+                      {canvasLinkedVaultPath ? (
+                        <button
+                          onClick={() => setCanvasLinkedVaultPath(null)}
+                          className="text-xs px-2.5 py-1.5 rounded-md border border-border text-muted-foreground hover:text-foreground hover:border-foreground transition-colors"
+                        >
+                          Unlink
+                        </button>
+                      ) : (
+                        <button
+                          onClick={handleLinkCanvasVault}
+                          className="text-xs px-2.5 py-1.5 rounded-md border border-border text-muted-foreground hover:text-foreground hover:border-foreground transition-colors"
+                        >
+                          Link to a vault…
+                        </button>
+                      )}
+                    </SettingRow>
+                  )}
 
                   <SettingRow
                     label="Planner"

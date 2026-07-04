@@ -230,29 +230,45 @@ function drawRubberBand(ctx: CanvasRenderingContext2D, p1: Point, p2: Point) {
 }
 
 // ── Disk I/O ───────────────────────────────────────────────────────────────────
+// Canvas data is stored globally (~/.inkwell/canvas.json) by default, independent
+// of whichever vault happens to be open — same model as the planner. If the user
+// links the canvas to a specific vault (linkedVaultPath), it's stored at
+// {linkedVaultPath}/.inkwell/canvas.json instead, regardless of the open vault.
 
 const canvasPath = (vp: string) => `${vp}/.inkwell/canvas.json`
 
-async function loadCanvas(vp: string): Promise<Shape[]> {
-  try { return JSON.parse(await (await import('@tauri-apps/plugin-fs')).readTextFile(canvasPath(vp))) }
+async function loadCanvas(linkedVaultPath: string | null): Promise<Shape[]> {
+  if (!linkedVaultPath) {
+    const { readGlobalCanvasFile } = await import('../../lib/vault')
+    return (await readGlobalCanvasFile()) as Shape[]
+  }
+  try { return JSON.parse(await (await import('@tauri-apps/plugin-fs')).readTextFile(canvasPath(linkedVaultPath))) }
   catch { return [] }
 }
-async function saveCanvas(vp: string, shapes: Shape[]) {
+async function saveCanvas(linkedVaultPath: string | null, shapes: Shape[]) {
+  if (!linkedVaultPath) {
+    const { writeGlobalCanvasFile } = await import('../../lib/vault')
+    return writeGlobalCanvasFile(shapes)
+  }
   try {
     const { writeTextFile, mkdir } = await import('@tauri-apps/plugin-fs')
-    await mkdir(`${vp}/.inkwell`, { recursive: true })
-    await writeTextFile(canvasPath(vp), JSON.stringify(shapes))
+    await mkdir(`${linkedVaultPath}/.inkwell`, { recursive: true })
+    await writeTextFile(canvasPath(linkedVaultPath), JSON.stringify(shapes))
   } catch (e) { console.error('[canvas] save failed:', e) }
 }
 
 // ── CanvasView ─────────────────────────────────────────────────────────────────
 
-const DEFAULT_COLOR  = '#f8fafc'
+// Default ink color must contrast with the canvas background, which follows the
+// app theme — near-white ink is invisible on the light theme's white canvas.
+const DEFAULT_COLOR_DARK  = '#ffffff'
+const DEFAULT_COLOR_LIGHT = '#000000'
 const DEFAULT_WIDTH  = 2
 const DEFAULT_RADIUS = 8
 
 export function CanvasView() {
-  const { vaultPath, theme } = useAppStore()
+  const { vaultPath, theme, canvasLinkedVaultPath } = useAppStore()
+  const defaultColor = theme === 'light' ? DEFAULT_COLOR_LIGHT : DEFAULT_COLOR_DARK
 
   const canvasRef    = useRef<HTMLCanvasElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -260,7 +276,7 @@ export function CanvasView() {
 
   // ── React state ──────────────────────────────────────────────────────────────
   const [tool,              setTool]              = useState<Tool>('pen')
-  const [color,             setColor]             = useState(DEFAULT_COLOR)
+  const [color,             setColor]             = useState(defaultColor)
   const [fill,              setFill]              = useState('none')
   const [strokeWidth,       setStrokeWidth]       = useState(DEFAULT_WIDTH)
   const [radius,            setRadius]            = useState(DEFAULT_RADIUS)
@@ -295,7 +311,7 @@ export function CanvasView() {
 
   // ── Tool pref refs ───────────────────────────────────────────────────────────
   const toolRef        = useRef<Tool>('pen')
-  const colorRef       = useRef(DEFAULT_COLOR)
+  const colorRef       = useRef(defaultColor)
   const fillRef        = useRef('none')
   const widthRef       = useRef(DEFAULT_WIDTH)
   const radiusRef      = useRef(DEFAULT_RADIUS)
@@ -349,6 +365,17 @@ export function CanvasView() {
   useEffect(() => { fontFamilyRef.current = fontFamily }, [fontFamily])
   useEffect(() => { boldRef.current       = bold       }, [bold])
   useEffect(() => { italicRef.current     = italic     }, [italic])
+
+  // Re-pick a legible default ink color when the app theme flips, but only if
+  // the user hasn't picked their own color — otherwise a manual pick would get
+  // silently overwritten every time the theme toggles.
+  const prevDefaultColorRef = useRef(defaultColor)
+  useEffect(() => {
+    if (color === prevDefaultColorRef.current && color !== defaultColor) {
+      setColor(defaultColor)
+    }
+    // prevDefaultColorRef itself is advanced below, once shapes have also been migrated
+  }, [defaultColor]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const updateCursor = useCallback((c: string) => {
     if (c !== cursorRef.current) { cursorRef.current = c; setCursorState(c) }
@@ -491,40 +518,46 @@ export function CanvasView() {
   // ── Load / save ──────────────────────────────────────────────────────────────
 
   useEffect(() => {
-    if (!vaultPath) return
-    loadCanvas(vaultPath).then(shapes => {
+    loadCanvas(canvasLinkedVaultPath).then(shapes => {
       shapesRef.current = shapes; historyRef.current = []; futureRef.current = []
       clearSelection(); setCanUndo(false); setCanRedo(false); render()
     })
-  }, [vaultPath, render, clearSelection])
+  }, [canvasLinkedVaultPath, render, clearSelection])
 
   const scheduleSave = useCallback(() => {
-    if (!vaultPath) return
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
-    saveTimerRef.current = setTimeout(() => saveCanvas(vaultPath, shapesRef.current), 1000)
-  }, [vaultPath])
+    saveTimerRef.current = setTimeout(() => saveCanvas(canvasLinkedVaultPath, shapesRef.current), 1000)
+  }, [canvasLinkedVaultPath])
 
   // ── Notes load / save ────────────────────────────────────────────────────────
-
-  const notesPath = vaultPath ? `${vaultPath}/.inkwell/canvas-notes.md` : null
+  // Same global-by-default / linked-vault-if-set model as the canvas shapes above.
 
   useEffect(() => {
-    if (!notesPath) return
-    import('@tauri-apps/plugin-fs').then(({ readTextFile }) =>
-      readTextFile(notesPath).then(setNotesContent).catch(() => setNotesContent(''))
-    )
-  }, [notesPath])
+    if (canvasLinkedVaultPath) {
+      import('@tauri-apps/plugin-fs').then(({ readTextFile }) =>
+        readTextFile(`${canvasLinkedVaultPath}/.inkwell/canvas-notes.md`).then(setNotesContent).catch(() => setNotesContent(''))
+      )
+    } else {
+      import('../../lib/vault').then(({ readGlobalCanvasNotes }) =>
+        readGlobalCanvasNotes().then(setNotesContent)
+      )
+    }
+  }, [canvasLinkedVaultPath])
 
   const handleNotesChange = useCallback((text: string) => {
     setNotesContent(text)
-    if (!notesPath) return
     if (notesTimerRef.current) clearTimeout(notesTimerRef.current)
     notesTimerRef.current = setTimeout(async () => {
-      const { writeTextFile, mkdir } = await import('@tauri-apps/plugin-fs')
-      if (vaultPath) await mkdir(`${vaultPath}/.inkwell`, { recursive: true })
-      await writeTextFile(notesPath, text)
+      if (canvasLinkedVaultPath) {
+        const { writeTextFile, mkdir } = await import('@tauri-apps/plugin-fs')
+        await mkdir(`${canvasLinkedVaultPath}/.inkwell`, { recursive: true })
+        await writeTextFile(`${canvasLinkedVaultPath}/.inkwell/canvas-notes.md`, text)
+      } else {
+        const { writeGlobalCanvasNotes } = await import('../../lib/vault')
+        await writeGlobalCanvasNotes(text)
+      }
     }, 600)
-  }, [notesPath, vaultPath])
+  }, [canvasLinkedVaultPath])
 
   // ── History ──────────────────────────────────────────────────────────────────
 
@@ -533,6 +566,26 @@ export function CanvasView() {
     futureRef.current = []; shapesRef.current = next
     setCanUndo(true); setCanRedo(false); scheduleSave(); render()
   }, [scheduleSave, render])
+
+  // When the theme flips, migrate any existing shapes still using the *previous*
+  // theme's default ink color — so drawings made without an explicit color pick
+  // stay visible instead of turning invisible against the new background color.
+  // Shapes with an explicitly-picked color are left untouched. Not pushed onto
+  // the undo stack — this is a display fixup, not a user edit.
+  useEffect(() => {
+    const prevDefault = prevDefaultColorRef.current
+    prevDefaultColorRef.current = defaultColor
+    if (prevDefault === defaultColor) return
+    let changed = false
+    const updated = shapesRef.current.map(s => {
+      if (s.color === prevDefault) { changed = true; return { ...s, color: defaultColor } }
+      return s
+    })
+    if (!changed) return
+    shapesRef.current = updated
+    render()
+    scheduleSave()
+  }, [defaultColor, render, scheduleSave])
 
   const undo = useCallback(() => {
     if (!historyRef.current.length) return

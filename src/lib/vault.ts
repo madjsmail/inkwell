@@ -39,6 +39,8 @@ const INKWELL_DIR = '.inkwell'
 const APP_DATA_FILE = 'app.json'
 const BOARDS_FILE = 'boards.json'
 const PLANNER_FILE = 'planner.json'
+const CANVAS_FILE = 'canvas.json'
+const CANVAS_NOTES_FILE = 'canvas-notes.md'
 const RECENT_KEY = 'inkwell-recent-vaults'
 const LAST_VAULT_KEY = 'inkwell-last-vault'
 
@@ -126,6 +128,48 @@ function extractTitle(body: string, filename: string): string {
   const match = body.match(/^#\s+(.+)$/m)
   if (match) return match[1].trim()
   return filename.replace(/\.md$/, '').replace(/-/g, ' ')
+}
+
+// ── Vault-wide filename search ────────────────────────────────────────────────
+// Obsidian's `![[filename]]` embeds reference a bare filename that Obsidian resolves
+// by searching the whole vault (images usually live in a dedicated attachments
+// folder, not next to the note). Inkwell has no such index, so this walks the vault
+// tree looking for a file matching that name. Results are cached per vault session
+// since the tree rarely changes between renders of the same note.
+const fileSearchCache = new Map<string, string | null>()
+
+export function clearFileSearchCache(vaultPath?: string): void {
+  if (!vaultPath) { fileSearchCache.clear(); return }
+  for (const key of fileSearchCache.keys()) {
+    if (key.startsWith(`${vaultPath}::`)) fileSearchCache.delete(key)
+  }
+}
+
+export async function findFileInVault(vaultPath: string, filename: string): Promise<string | null> {
+  const cacheKey = `${vaultPath}::${filename.toLowerCase()}`
+  if (fileSearchCache.has(cacheKey)) return fileSearchCache.get(cacheKey)!
+
+  const target = filename.toLowerCase()
+  const queue: string[] = [vaultPath]
+  let found: string | null = null
+
+  while (queue.length && !found) {
+    const dir = queue.shift()!
+    let entries: FSEntry[] = []
+    try { entries = await listDir(dir) } catch { continue }
+
+    for (const entry of entries) {
+      if (entry.isDirectory) {
+        if (!entry.name.startsWith('.')) queue.push(entry.path)
+      } else if (entry.name.toLowerCase() === target) {
+        found = entry.path
+        break
+      }
+    }
+  }
+
+  fileSearchCache.set(cacheKey, found)
+  return found
 }
 
 // ── Vault reading ─────────────────────────────────────────────────────────────
@@ -396,6 +440,68 @@ export async function readPlannerFile(): Promise<WeeklyPlan | null> {
     if (!await exists(filePath)) return null
     return JSON.parse(await readTextFile(filePath)) as WeeklyPlan
   } catch { return null }
+}
+
+// ── Canvas data (~/.inkwell/canvas.json) ───────────────────────────────────────
+// Stored globally by default — independent of which vault is open — mirroring
+// the planner. The user can optionally link the canvas to a specific vault
+// (see canvasLinkedVaultPath in useAppStore), in which case it's stored at
+// {vaultPath}/.inkwell/canvas.json instead, regardless of the vault currently open.
+
+async function getGlobalCanvasPath(): Promise<string> {
+  const { homeDir, join } = await import('@tauri-apps/api/path')
+  const home = await homeDir()
+  return join(home, INKWELL_DIR, CANVAS_FILE)
+}
+
+async function getGlobalCanvasNotesPath(): Promise<string> {
+  const { homeDir, join } = await import('@tauri-apps/api/path')
+  const home = await homeDir()
+  return join(home, INKWELL_DIR, CANVAS_NOTES_FILE)
+}
+
+export async function writeGlobalCanvasFile(shapes: unknown): Promise<void> {
+  if (!isTauri) return
+  try {
+    const { writeTextFile, mkdir } = await import('@tauri-apps/plugin-fs')
+    const { homeDir, join } = await import('@tauri-apps/api/path')
+    const home = await homeDir()
+    const dir  = await join(home, INKWELL_DIR)
+    await mkdir(dir, { recursive: true })
+    await writeTextFile(await getGlobalCanvasPath(), JSON.stringify(shapes))
+  } catch (e) { console.error('Failed to write global canvas:', e) }
+}
+
+export async function readGlobalCanvasFile(): Promise<unknown[]> {
+  if (!isTauri) return []
+  try {
+    const { readTextFile, exists } = await import('@tauri-apps/plugin-fs')
+    const filePath = await getGlobalCanvasPath()
+    if (!await exists(filePath)) return []
+    return JSON.parse(await readTextFile(filePath))
+  } catch { return [] }
+}
+
+export async function writeGlobalCanvasNotes(content: string): Promise<void> {
+  if (!isTauri) return
+  try {
+    const { writeTextFile, mkdir } = await import('@tauri-apps/plugin-fs')
+    const { homeDir, join } = await import('@tauri-apps/api/path')
+    const home = await homeDir()
+    const dir  = await join(home, INKWELL_DIR)
+    await mkdir(dir, { recursive: true })
+    await writeTextFile(await getGlobalCanvasNotesPath(), content)
+  } catch (e) { console.error('Failed to write global canvas notes:', e) }
+}
+
+export async function readGlobalCanvasNotes(): Promise<string> {
+  if (!isTauri) return ''
+  try {
+    const { readTextFile, exists } = await import('@tauri-apps/plugin-fs')
+    const filePath = await getGlobalCanvasNotesPath()
+    if (!await exists(filePath)) return ''
+    return await readTextFile(filePath)
+  } catch { return '' }
 }
 
 export async function writeNoteMeta(

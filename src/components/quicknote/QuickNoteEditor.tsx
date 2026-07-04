@@ -1,7 +1,7 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react'
 import { EditorState } from '@codemirror/state'
 import { EditorView, keymap, placeholder } from '@codemirror/view'
-import { defaultKeymap, history, historyKeymap } from '@codemirror/commands'
+import { defaultKeymap, history, historyKeymap, undo, redo } from '@codemirror/commands'
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown'
 import {
   markdownHighlighting,
@@ -112,6 +112,16 @@ export const QuickNoteEditor = forwardRef<QuickNoteEditorHandle, QuickNoteEditor
         extensions: [
           history(),
           shortcutKeymap,
+          // See MarkdownEditor.tsx for why this is needed — Chromium's native
+          // contenteditable undo (WebView2 on Windows) bypasses CodeMirror's own
+          // history and must be redirected through it explicitly.
+          EditorView.domEventHandlers({
+            beforeinput: (event, view) => {
+              if (event.inputType === 'historyUndo') { event.preventDefault(); undo(view); return true }
+              if (event.inputType === 'historyRedo') { event.preventDefault(); redo(view); return true }
+              return false
+            },
+          }),
           markdown({ base: markdownLanguage }),
           markdownHighlighting,
           highlightMarkPlugin,
