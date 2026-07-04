@@ -218,7 +218,34 @@ function PreviewFileEmbed({
 }) {
   const ext = relativePath.split('.').pop()?.toLowerCase() ?? ''
   const type = embedFileType(ext)
-  const fullPath = vaultPath ? `${vaultPath}/${relativePath}` : relativePath
+  const directPath = vaultPath ? `${vaultPath}/${relativePath}` : relativePath
+
+  // Obsidian's `![[filename]]` embeds are bare filenames resolved by searching the
+  // whole vault, since the file usually lives in an attachments folder, not next to
+  // the note. Try the direct vault-relative path first, then fall back to a vault-wide
+  // search by basename so images from imported Obsidian vaults still resolve.
+  const [fullPath, setFullPath] = useState(directPath)
+  const [resolving, setResolving] = useState(isTauriEnv)
+
+  useEffect(() => {
+    let cancelled = false
+    setFullPath(directPath)
+    if (!vaultPath || !isTauriEnv) { setResolving(false); return }
+    setResolving(true)
+    import('@tauri-apps/plugin-fs').then(async ({ exists }) => {
+      if (await exists(directPath).catch(() => false)) {
+        if (!cancelled) setResolving(false)
+        return
+      }
+      const { findFileInVault } = await import('../../lib/vault')
+      const filename = relativePath.split('/').pop() || relativePath
+      const found = await findFileInVault(vaultPath, filename)
+      if (cancelled) return
+      if (found) setFullPath(found)
+      setResolving(false)
+    }).catch(() => { if (!cancelled) setResolving(false) })
+    return () => { cancelled = true }
+  }, [directPath, vaultPath, relativePath])
 
   // Preloaded data from ShareDialog (synchronous — ready before mount)
   const preloads = React.useContext(PreloadContext)
@@ -250,7 +277,7 @@ function PreviewFileEmbed({
 
   // PDF → base64 (asset:// is blocked inside iframes in WKWebView)
   useEffect(() => {
-    if (!expanded || type !== 'pdf' || pdfUrl || !isTauriEnv) return
+    if (!expanded || type !== 'pdf' || pdfUrl || !isTauriEnv || resolving) return
     import('@tauri-apps/plugin-fs')
       .then(({ readFile }) => readFile(fullPath))
       .then(bytes => {
@@ -258,11 +285,12 @@ function PreviewFileEmbed({
         setPdfUrl(`data:application/pdf;base64,${b64}`)
       })
       .catch(console.error)
-  }, [expanded, fullPath, type, pdfUrl])
+  }, [expanded, fullPath, type, pdfUrl, resolving])
 
   // Image → base64 (asset:// URLs are Tauri-only; data: URLs work everywhere)
+  // Images render directly (no accordion), so load eagerly rather than on expand.
   useEffect(() => {
-    if (!expanded || type !== 'image' || imgUrl || !isTauriEnv) return
+    if (type !== 'image' || imgUrl || !isTauriEnv || resolving) return
     const mimeMap: Record<string, string> = {
       png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg',
       gif: 'image/gif', webp: 'image/webp', svg: 'image/svg+xml',
@@ -276,11 +304,11 @@ function PreviewFileEmbed({
         setImgUrl(`data:${mime};base64,${b64}`)
       })
       .catch(console.error)
-  }, [expanded, fullPath, type, ext, imgUrl])
+  }, [fullPath, type, ext, imgUrl, resolving])
 
   // Video → base64 (asset:// is blocked inside <video> in WKWebView)
   useEffect(() => {
-    if (!expanded || type !== 'video' || videoUrl || !isTauriEnv) return
+    if (!expanded || type !== 'video' || videoUrl || !isTauriEnv || resolving) return
     const mime =
       ext === 'webm' ? 'video/webm' :
       ext === 'mov'  ? 'video/quicktime' :
@@ -293,7 +321,7 @@ function PreviewFileEmbed({
         setVideoUrl(`data:${mime};base64,${b64}`)
       })
       .catch(console.error)
-  }, [expanded, fullPath, type, ext, videoUrl])
+  }, [expanded, fullPath, type, ext, videoUrl, resolving])
 
   const openExternally = () => {
     if (!isTauriEnv) return
@@ -327,6 +355,27 @@ function PreviewFileEmbed({
 
   const icon =
     type === 'pdf' ? '📄' : type === 'image' ? '🖼' : type === 'video' ? '🎬' : '📎'
+
+  // Images render directly, like a normal markdown image — no accordion chrome.
+  if (type === 'image') {
+    return (
+      <div className="group/embed relative my-3 not-prose inline-block max-w-full">
+        {imgUrl
+          ? <img src={imgUrl} alt={displayName} className="max-w-full rounded-lg border border-border/40 block" />
+          : <div className="h-32 w-full min-w-[200px] flex items-center justify-center text-sm text-muted-foreground border border-border/40 rounded-lg">Loading…</div>
+        }
+        {noteId && (
+          <button
+            title="Remove from note and list"
+            onClick={e => { e.stopPropagation(); handleRemove() }}
+            className="absolute top-2 right-2 shrink-0 opacity-0 group-hover/embed:opacity-100 bg-background/80 hover:text-red-400 text-muted-foreground transition-opacity p-1 rounded-md border border-border/40"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+          </button>
+        )}
+      </div>
+    )
+  }
 
   return (
     <div className="group/embed border border-border rounded-lg overflow-hidden my-3 bg-surface/60 not-prose">
@@ -376,11 +425,6 @@ function PreviewFileEmbed({
                     : <iframe src={pdfUrl} className="w-full block border-none" style={{ height: 560 }} title={displayName} />
                 )
               : <div className="flex items-center justify-center h-16 text-sm text-muted-foreground">Loading PDF…</div>
-          )}
-          {type === 'image' && (
-            imgUrl
-              ? <img src={imgUrl} alt={displayName} className="w-full max-h-[480px] object-contain bg-background block" />
-              : <div className="flex items-center justify-center h-16 text-sm text-muted-foreground">Loading…</div>
           )}
           {type === 'video' && (
             videoUrl
@@ -452,7 +496,7 @@ function ExternalImage({ src, alt }: { src: string; alt: string }) {
 }
 
 /** Renders a local image by reading it via plugin-fs and converting to a data URL. */
-function LocalImage({ absPath, alt }: { absPath: string; alt: string }) {
+function LocalImage({ absPath, alt, vaultPath }: { absPath: string; alt: string; vaultPath: string | null }) {
   const preloads = React.useContext(PreloadContext)
   // Prefer preloaded data (synchronous, from ShareDialog), then module cache, then empty
   const [dataSrc, setDataSrc] = useState(
@@ -467,8 +511,20 @@ function LocalImage({ absPath, alt }: { absPath: string; alt: string }) {
 
   useEffect(() => {
     if (!isTauriEnv || dataSrc) return
-    import('@tauri-apps/plugin-fs')
-      .then(({ readFile }) => readFile(absPath))
+    const loadBytes = (path: string) => import('@tauri-apps/plugin-fs').then(({ readFile }) => readFile(path))
+
+    loadBytes(absPath)
+      .catch(async () => {
+        // Fall back to a vault-wide search by filename — Obsidian-style relative
+        // paths (e.g. a differently-named/nested attachments folder) commonly
+        // don't line up with the literal path written in the markdown.
+        const filename = absPath.split('/').pop() ?? ''
+        if (!vaultPath || !filename) throw new Error('cannot resolve fallback path')
+        const { findFileInVault } = await import('../../lib/vault')
+        const found = await findFileInVault(vaultPath, filename)
+        if (!found) throw new Error('image not found in vault')
+        return loadBytes(found)
+      })
       .then(bytes => {
         const ext = absPath.split('.').pop()?.toLowerCase() ?? 'jpg'
         const mime = MIME[ext] ?? 'image/jpeg'
@@ -479,7 +535,7 @@ function LocalImage({ absPath, alt }: { absPath: string; alt: string }) {
         setDataSrc(dataUrl)
       })
       .catch(e => console.error('Failed to load image:', absPath, e))
-  }, [absPath, dataSrc])
+  }, [absPath, dataSrc, vaultPath])
 
   return (
     <img
@@ -731,7 +787,7 @@ export function RichPreview({ content, noteId, searchQuery = '', searchMatchInde
       const isExternal = !decoded || /^(https?:|data:|blob:)/.test(decoded)
       if (isExternal) return <ExternalImage src={decoded} alt={alt ?? ''} />
       const absPath = vaultPath ? (decoded.startsWith('/') ? decoded : `${vaultPath}/${decoded}`) : decoded
-      return <LocalImage absPath={absPath} alt={alt ?? ''} />
+      return <LocalImage absPath={absPath} alt={alt ?? ''} vaultPath={vaultPath ?? null} />
     },
 
     strong: ({ children }: any) => <strong className="font-semibold text-foreground">{children}</strong>,

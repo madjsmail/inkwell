@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { EditorState } from '@codemirror/state'
 import { EditorView, keymap } from '@codemirror/view'
-import { defaultKeymap, history, historyKeymap } from '@codemirror/commands'
+import { defaultKeymap, history, historyKeymap, undo, redo } from '@codemirror/commands'
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown'
 import { useAppStore } from '../../store/useAppStore'
 import { saveNote } from '../../lib/fs'
@@ -146,6 +146,18 @@ export function MarkdownEditor({ noteId, content, onScrollerReady }: MarkdownEdi
       extensions: [
         history(),
         keymap.of([...defaultKeymap, ...historyKeymap]),
+        // Chromium's contenteditable fires its own native undo/redo (beforeinput
+        // historyUndo/historyRedo) which bypasses CodeMirror's managed history and
+        // corrupts editor state. This only surfaces on Chromium-based WebViews
+        // (WebView2 on Windows) — WebKit on macOS doesn't do this. Intercept it and
+        // redirect through CodeMirror's own undo/redo commands instead.
+        EditorView.domEventHandlers({
+          beforeinput: (event, view) => {
+            if (event.inputType === 'historyUndo') { event.preventDefault(); undo(view); return true }
+            if (event.inputType === 'historyRedo') { event.preventDefault(); redo(view); return true }
+            return false
+          },
+        }),
         markdown({ base: markdownLanguage }),
         markdownHighlighting,
         highlightMarkPlugin,

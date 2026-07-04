@@ -372,6 +372,7 @@ const FILE_EMBED_RE = /!\[\[([^\]|]+?)(?:\|([^\]|]*))?(?:\|(\d+))?\]\]/g
 class FileEmbedWidget extends WidgetType {
   private expanded = false
   private previewEl: HTMLElement | null = null
+  private resolvedPath: string | null = null
 
   constructor(
     readonly fullPath: string,
@@ -379,19 +380,142 @@ class FileEmbedWidget extends WidgetType {
     readonly sizeBytes: number,
     readonly type: 'image' | 'pdf' | 'video' | 'other',
     readonly relativePath: string,
+    readonly vaultPath: string,
     readonly onRemove: (relativePath: string) => void,
   ) { super() }
+
+  // Obsidian's `![[filename]]` embeds are bare filenames resolved by searching the
+  // whole vault, since the file usually lives in an attachments folder, not next to
+  // the note. Try the literal vault-relative path first, then fall back to a
+  // vault-wide search by basename so images from imported Obsidian vaults resolve.
+  private async resolvePath(): Promise<string> {
+    if (this.resolvedPath) return this.resolvedPath
+    if (!isTauriEnv) return this.fullPath
+    try {
+      const { exists } = await import('@tauri-apps/plugin-fs')
+      if (await exists(this.fullPath)) { this.resolvedPath = this.fullPath; return this.fullPath }
+    } catch { /* fall through to vault-wide search */ }
+    if (this.vaultPath) {
+      try {
+        const { findFileInVault } = await import('./vault')
+        const filename = this.relativePath.split('/').pop() || this.relativePath
+        const found = await findFileInVault(this.vaultPath, filename)
+        if (found) { this.resolvedPath = found; return found }
+      } catch { /* ignore, use literal path below */ }
+    }
+    this.resolvedPath = this.fullPath
+    return this.fullPath
+  }
 
   eq(other: FileEmbedWidget) {
     return (
       other.fullPath === this.fullPath &&
       other.displayName === this.displayName &&
       other.sizeBytes === this.sizeBytes &&
-      other.relativePath === this.relativePath
+      other.relativePath === this.relativePath &&
+      other.vaultPath === this.vaultPath
     )
   }
 
+  // Images render directly — no accordion chrome, just the picture and a hover-only
+  // remove button, matching how a normal markdown image looks.
+  private buildImageDOM(view: EditorView): HTMLElement {
+    const outer = document.createElement('div')
+    outer.setAttribute('data-cm-embed', 'image')
+    outer.style.cssText = [
+      'display:inline-block',
+      'position:relative',
+      'max-width:100%',
+      'margin:6px 0',
+      'font-family:inherit',
+      'user-select:none',
+    ].join(';')
+
+    const img = document.createElement('img')
+    img.alt = this.displayName
+    img.style.cssText = [
+      'display:block',
+      'max-width:100%',
+      'border-radius:8px',
+      'border:1px solid hsl(var(--border)/0.4)',
+    ].join(';')
+
+    const placeholder = document.createElement('div')
+    placeholder.style.cssText = [
+      'display:flex',
+      'align-items:center',
+      'justify-content:center',
+      'height:128px',
+      'min-width:200px',
+      'font-size:12px',
+      'color:hsl(var(--muted-foreground))',
+      'border:1px solid hsl(var(--border)/0.4)',
+      'border-radius:8px',
+    ].join(';')
+    placeholder.textContent = 'Loading…'
+    outer.appendChild(placeholder)
+
+    const resolveUrl = async (): Promise<string> => {
+      const path = await this.resolvePath()
+      if (isTauriEnv) {
+        try {
+          const { convertFileSrc } = await import('@tauri-apps/api/core')
+          return convertFileSrc(path)
+        } catch {
+          return `asset://localhost/${encodeURIComponent(path)}`
+        }
+      }
+      return `file://${path}`
+    }
+    resolveUrl().then(url => {
+      img.src = url
+      img.onload = () => { placeholder.replaceWith(img) }
+    })
+
+    const trashBtn = document.createElement('button')
+    trashBtn.title = 'Remove from note and list'
+    trashBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>`
+    trashBtn.style.cssText = [
+      'display:flex',
+      'align-items:center',
+      'justify-content:center',
+      'position:absolute',
+      'top:8px',
+      'right:8px',
+      'background:hsl(var(--background)/0.8)',
+      'border:1px solid hsl(var(--border)/0.4)',
+      'cursor:pointer',
+      'padding:4px',
+      'border-radius:6px',
+      'color:hsl(var(--muted-foreground))',
+      'opacity:0',
+      'transition:opacity 0.15s, color 0.15s',
+      'line-height:1',
+    ].join(';')
+    trashBtn.addEventListener('mouseenter', () => { trashBtn.style.color = 'hsl(var(--destructive, 0 72% 51%))' })
+    trashBtn.addEventListener('mouseleave', () => { trashBtn.style.color = 'hsl(var(--muted-foreground))' })
+    outer.addEventListener('mouseenter', () => { trashBtn.style.opacity = '1' })
+    outer.addEventListener('mouseleave', () => { trashBtn.style.opacity = '0' })
+    trashBtn.addEventListener('mousedown', e => {
+      e.preventDefault()
+      e.stopPropagation()
+      const escaped = this.relativePath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+      const re = new RegExp(`!\\[\\[${escaped}[^\\]]*\\]\\]`)
+      const docText = view.state.doc.toString()
+      const m = re.exec(docText)
+      if (m) {
+        view.dispatch({ changes: { from: m.index, to: m.index + m[0].length, insert: '' } })
+      }
+      this.onRemove(this.relativePath)
+    })
+    outer.appendChild(trashBtn)
+
+    return outer
+  }
+
   toDOM(view: EditorView) {
+    if (this.type === 'image') return this.buildImageDOM(view)
+
     const outer = document.createElement('div')
     outer.setAttribute('data-cm-embed', 'file')
     outer.style.cssText = [
@@ -419,7 +543,6 @@ class FileEmbedWidget extends WidgetType {
     iconEl.style.cssText = 'font-size:16px;line-height:1;flex-shrink:0'
     iconEl.textContent =
       this.type === 'pdf'   ? '📄' :
-      this.type === 'image' ? '🖼' :
       this.type === 'video' ? '🎬' : '📎'
 
     const nameEl = document.createElement('span')
@@ -492,12 +615,13 @@ class FileEmbedWidget extends WidgetType {
     // Returns the best URL for rendering this file inline.
     // PDFs use a data: URL because Tauri's WKWebView blocks asset:// inside iframes.
     const resolveUrl = async (mimeType?: string): Promise<string> => {
+      const path = await this.resolvePath()
       if (isTauriEnv) {
         if (mimeType) {
           // Load as bytes → base64 data URL (works in any WKWebView context)
           try {
             const { readFile } = await import('@tauri-apps/plugin-fs')
-            const bytes = await readFile(this.fullPath)
+            const bytes = await readFile(path)
             const b64 = uint8ToBase64(new Uint8Array(bytes))
             return `data:${mimeType};base64,${b64}`
           } catch {
@@ -506,17 +630,19 @@ class FileEmbedWidget extends WidgetType {
         }
         try {
           const { convertFileSrc } = await import('@tauri-apps/api/core')
-          return convertFileSrc(this.fullPath)
+          return convertFileSrc(path)
         } catch {
-          return `asset://localhost/${encodeURIComponent(this.fullPath)}`
+          return `asset://localhost/${encodeURIComponent(path)}`
         }
       }
-      return `file://${this.fullPath}`
+      return `file://${path}`
     }
 
     const openExternally = () => {
       if (isTauriEnv) {
-        import('@tauri-apps/plugin-opener').then(({ openPath }) => openPath(this.fullPath))
+        this.resolvePath().then(path =>
+          import('@tauri-apps/plugin-opener').then(({ openPath }) => openPath(path))
+        )
       }
     }
 
@@ -577,13 +703,6 @@ class FileEmbedWidget extends WidgetType {
             bar.appendChild(openBtn)
             this.previewEl.appendChild(bar)
           })
-
-        } else if (this.type === 'image') {
-          const img = document.createElement('img')
-          img.alt = this.displayName
-          img.style.cssText = 'display:block;width:100%;max-height:480px;object-fit:contain;background:hsl(var(--background))'
-          this.previewEl.appendChild(img)
-          resolveUrl().then(url => { img.src = url }) // images work fine via asset://
 
         } else if (this.type === 'video') {
           const video = document.createElement('video')
@@ -648,7 +767,7 @@ class FileEmbedWidget extends WidgetType {
     return outer
   }
 
-  get estimatedHeight() { return this.expanded ? 580 : 44 }
+  get estimatedHeight() { return this.type === 'image' ? 280 : (this.expanded ? 580 : 44) }
   ignoreEvent() { return false }
 }
 
@@ -680,7 +799,7 @@ function buildFileEmbedDecorations(
 
       widgets.push(
         Decoration.replace({
-          widget: new FileEmbedWidget(fullPath, displayName, sizeBytes, type, relativePath, onRemove),
+          widget: new FileEmbedWidget(fullPath, displayName, sizeBytes, type, relativePath, vaultPath, onRemove),
           inclusive: false,
         }).range(matchFrom, matchTo)
       )

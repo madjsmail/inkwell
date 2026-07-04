@@ -163,6 +163,11 @@ interface AppState {
   setSidebarGlass: (enabled: boolean) => void;
   canvasEnabled: boolean;
   setCanvasEnabled: (enabled: boolean) => void;
+  // Canvas data is stored globally (independent of whichever vault is open) by
+  // default — this mirrors the planner. If set, canvas data instead reads/writes
+  // to this specific vault's .inkwell/canvas.json regardless of the open vault.
+  canvasLinkedVaultPath: string | null;
+  setCanvasLinkedVaultPath: (path: string | null) => void;
   plannerEnabled: boolean;
   setPlannerEnabled: (enabled: boolean) => void;
   searchOpen: boolean;
@@ -510,6 +515,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   editorLineHeight: localStorage.getItem("inkwell-editor-lineHeight") ?? "1.7",
   sidebarGlass: localStorage.getItem("inkwell-sidebar-glass") === "true",
   canvasEnabled: localStorage.getItem("inkwell-canvas-enabled") === "true",
+  canvasLinkedVaultPath: localStorage.getItem("inkwell-canvas-linked-vault"),
   plannerEnabled: localStorage.getItem("inkwell-planner-enabled") !== "false",
   searchOpen: false,
   searchQuery: "",
@@ -688,6 +694,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       document.documentElement.dataset.theme = name;
     }
     localStorage.setItem("inkwell-theme", name);
+    localStorage.setItem(dark ? "inkwell-last-dark-theme" : "inkwell-last-light-theme", name);
     set({ themeName: name, theme: dark ? "dark" : "light" });
   },
 
@@ -695,12 +702,22 @@ export const useAppStore = create<AppState>((set, get) => ({
     const { themeName, customThemes } = get();
     const custom = customThemes.find((t) => t.id === themeName);
     const dark = custom ? custom.dark : isDarkTheme(themeName);
-    const next = dark ? "parchment" : "midnight";
-    clearCustomThemeVars();
-    document.documentElement.classList.toggle("dark", false);
-    document.documentElement.dataset.theme = next;
+    const next = dark
+      ? (localStorage.getItem("inkwell-last-light-theme") ?? "parchment")
+      : (localStorage.getItem("inkwell-last-dark-theme") ?? "midnight");
+    const nextCustom = get().customThemes.find((t) => t.id === next);
+    const nextDark = nextCustom ? nextCustom.dark : isDarkTheme(next);
+    document.documentElement.classList.toggle("dark", nextDark);
+    if (nextCustom) {
+      delete document.documentElement.dataset.theme;
+      applyCustomThemeVars(deriveThemeVars(nextCustom.colors, nextDark));
+    } else {
+      clearCustomThemeVars();
+      document.documentElement.dataset.theme = next;
+    }
     localStorage.setItem("inkwell-theme", next);
-    set({ themeName: next, theme: isDarkTheme(next) ? "dark" : "light" });
+    localStorage.setItem(nextDark ? "inkwell-last-dark-theme" : "inkwell-last-light-theme", next);
+    set({ themeName: next, theme: nextDark ? "dark" : "light" });
   },
 
   saveCustomTheme: (theme) => {
@@ -763,6 +780,12 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (!enabled && get().activeView === "canvas") {
       set({ activeView: "notes" });
     }
+  },
+
+  setCanvasLinkedVaultPath: (path) => {
+    if (path) localStorage.setItem("inkwell-canvas-linked-vault", path);
+    else localStorage.removeItem("inkwell-canvas-linked-vault");
+    set({ canvasLinkedVaultPath: path });
   },
 
   setPlannerEnabled: (enabled) => {
@@ -1074,7 +1097,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 
     // New id = parent prefix + new slug
     const parentPrefix = folder.parentId ? `${folder.parentId}/` : ''
-    const newId   = `${parentPrefix}${trimmed}`
+    const newId = `${parentPrefix}${trimmed}`
     const newPath = vaultPath ? `${vaultPath}/${newId}` : newId
 
     if (folder.path !== newPath) {
@@ -1191,11 +1214,11 @@ export const useAppStore = create<AppState>((set, get) => ({
       tasks: s.tasks.map((t) =>
         t.id === taskId
           ? {
-              ...t,
-              subtasks: t.subtasks.map((st: Subtask) =>
-                st.id === subtaskId ? { ...st, completed: !st.completed } : st,
-              ),
-            }
+            ...t,
+            subtasks: t.subtasks.map((st: Subtask) =>
+              st.id === subtaskId ? { ...st, completed: !st.completed } : st,
+            ),
+          }
           : t,
       ),
     }));
@@ -1244,9 +1267,9 @@ export const useAppStore = create<AppState>((set, get) => ({
       n.id !== noteId
         ? n
         : {
-            ...n,
-            linkedItems: (n.linkedItems ?? []).filter((l) => l.id !== itemId),
-          };
+          ...n,
+          linkedItems: (n.linkedItems ?? []).filter((l) => l.id !== itemId),
+        };
     set((s) => {
       const notes = s.notes.map(updateNote);
       const updated = notes.find((n) => n.id === noteId);
@@ -1289,11 +1312,11 @@ export const useAppStore = create<AppState>((set, get) => ({
       n.id !== noteId
         ? n
         : {
-            ...n,
-            attachments: (n.attachments ?? []).filter(
-              (a) => a.id !== attachmentId,
-            ),
-          };
+          ...n,
+          attachments: (n.attachments ?? []).filter(
+            (a) => a.id !== attachmentId,
+          ),
+        };
     set((s) => {
       const notes = s.notes.map(updateNote);
       const updated = notes.find((n) => n.id === noteId);
@@ -1501,11 +1524,11 @@ export const useAppStore = create<AppState>((set, get) => ({
       boardTasks: s.boardTasks.map((t) =>
         t.id === taskId
           ? {
-              ...t,
-              subtasks: t.subtasks.map((st) =>
-                st.id === subtaskId ? { ...st, completed: !st.completed } : st,
-              ),
-            }
+            ...t,
+            subtasks: t.subtasks.map((st) =>
+              st.id === subtaskId ? { ...st, completed: !st.completed } : st,
+            ),
+          }
           : t,
       ),
     }));
