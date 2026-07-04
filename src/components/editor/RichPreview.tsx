@@ -419,6 +419,7 @@ interface RichPreviewProps {
   searchMatchIndex?: number
   /** When true, all file embeds start expanded and use base64 for portability (used by HTML/PDF export) */
   forExport?: boolean
+  onScrollerReady?: (el: HTMLElement) => void
 }
 
 // Module-level cache: absPath → data URL. Persists across re-renders and note switches.
@@ -532,7 +533,7 @@ function preprocessMarkdown(md: string): string {
   )
 }
 
-export function RichPreview({ content, noteId, searchQuery = '', searchMatchIndex = 0, forExport = false }: RichPreviewProps) {
+export function RichPreview({ content, noteId, searchQuery = '', searchMatchIndex = 0, forExport = false, onScrollerReady }: RichPreviewProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const pendingScrollRef = useRef<number | null>(null)
@@ -546,6 +547,10 @@ export function RichPreview({ content, noteId, searchQuery = '', searchMatchInde
       pendingScrollRef.current = null
     }
   })
+
+  useEffect(() => {
+    if (scrollRef.current) onScrollerReady?.(scrollRef.current)
+  }, [])
 
   // ── Search highlighting in preview DOM ──────────────────────────────────
   useEffect(() => {

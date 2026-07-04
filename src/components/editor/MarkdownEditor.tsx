@@ -14,9 +14,10 @@ import { deleteAttachmentFile } from '../../lib/attachments'
 interface MarkdownEditorProps {
   noteId: string
   content: string
+  onScrollerReady?: (el: HTMLElement) => void
 }
 
-export function MarkdownEditor({ noteId, content }: MarkdownEditorProps) {
+export function MarkdownEditor({ noteId, content, onScrollerReady }: MarkdownEditorProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const viewRef = useEditorViewRef()
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -174,6 +175,7 @@ export function MarkdownEditor({ noteId, content }: MarkdownEditorProps) {
 
     const view = new EditorView({ state, parent: containerRef.current })
     viewRef.current = view
+    onScrollerReady?.(view.scrollDOM)
 
     return () => {
       view.destroy()
