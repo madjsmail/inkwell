@@ -7,6 +7,7 @@ export async function pickAndCopyImage(vaultPath: string): Promise<string | null
   try {
     const { open } = await import('@tauri-apps/plugin-dialog')
     const { readFile, writeFile, mkdir, exists } = await import('@tauri-apps/plugin-fs')
+    const { basename } = await import('@tauri-apps/api/path')
 
     const selected = await open({
       multiple: false,
@@ -20,7 +21,7 @@ export async function pickAndCopyImage(vaultPath: string): Promise<string | null
       await mkdir(assetsDir, { recursive: true })
     }
 
-    const filename = selected.split('/').pop()!
+    const filename = await basename(selected)
     const bytes = await readFile(selected)
     await writeFile(`${assetsDir}/${filename}`, bytes)
 

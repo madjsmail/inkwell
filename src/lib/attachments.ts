@@ -67,6 +67,7 @@ export async function pickAndCopyAttachment(vaultPath: string): Promise<Attachme
   try {
     const { open } = await import('@tauri-apps/plugin-dialog')
     const { readFile, writeFile, mkdir, exists } = await import('@tauri-apps/plugin-fs')
+    const { basename } = await import('@tauri-apps/api/path')
 
     const selected = await open({
       multiple: false,
@@ -87,7 +88,7 @@ export async function pickAndCopyAttachment(vaultPath: string): Promise<Attachme
     }
 
     // ── Deduplicate the filename if it already exists ──────────────────────────
-    const originalName = selected.split('/').pop()!
+    const originalName = await basename(selected)
     const dotIdx = originalName.lastIndexOf('.')
     const baseName = dotIdx >= 0 ? originalName.slice(0, dotIdx) : originalName
     const ext = (dotIdx >= 0 ? originalName.slice(dotIdx + 1) : '').toLowerCase()

@@ -163,6 +163,11 @@ interface AppState {
   setSidebarGlass: (enabled: boolean) => void;
   canvasEnabled: boolean;
   setCanvasEnabled: (enabled: boolean) => void;
+  // Canvas data is stored globally (independent of whichever vault is open) by
+  // default — this mirrors the planner. If set, canvas data instead reads/writes
+  // to this specific vault's .inkwell/canvas.json regardless of the open vault.
+  canvasLinkedVaultPath: string | null;
+  setCanvasLinkedVaultPath: (path: string | null) => void;
   plannerEnabled: boolean;
   setPlannerEnabled: (enabled: boolean) => void;
   searchOpen: boolean;
@@ -510,6 +515,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   editorLineHeight: localStorage.getItem("inkwell-editor-lineHeight") ?? "1.7",
   sidebarGlass: localStorage.getItem("inkwell-sidebar-glass") === "true",
   canvasEnabled: localStorage.getItem("inkwell-canvas-enabled") === "true",
+  canvasLinkedVaultPath: localStorage.getItem("inkwell-canvas-linked-vault"),
   plannerEnabled: localStorage.getItem("inkwell-planner-enabled") !== "false",
   searchOpen: false,
   searchQuery: "",
@@ -774,6 +780,12 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (!enabled && get().activeView === "canvas") {
       set({ activeView: "notes" });
     }
+  },
+
+  setCanvasLinkedVaultPath: (path) => {
+    if (path) localStorage.setItem("inkwell-canvas-linked-vault", path);
+    else localStorage.removeItem("inkwell-canvas-linked-vault");
+    set({ canvasLinkedVaultPath: path });
   },
 
   setPlannerEnabled: (enabled) => {

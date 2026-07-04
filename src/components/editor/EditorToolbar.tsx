@@ -33,14 +33,31 @@ function applyInlineFormat(view: EditorView, prefix: string, suffix: string) {
   const { state } = view
   const changes = state.changeByRange(range => {
     const selected = state.sliceDoc(range.from, range.to)
-    // Toggle off if already wrapped
-    if (selected.startsWith(prefix) && selected.endsWith(suffix) && selected.length > prefix.length + suffix.length) {
+
+    // Toggle off if the selection itself is fully wrapped, e.g. "**bold**" selected whole
+    if (selected.startsWith(prefix) && selected.endsWith(suffix) && selected.length >= prefix.length + suffix.length) {
       const inner = selected.slice(prefix.length, selected.length - suffix.length)
       return {
         changes: { from: range.from, to: range.to, insert: inner },
         range: EditorSelection.range(range.from, range.from + inner.length),
       }
     }
+
+    // Toggle off if the markers sit just outside the selection/cursor, e.g. cursor
+    // placed inside "**|bold|**" or "**|**" with nothing selected — the common case
+    // when the button is clicked with no text highlighted.
+    const before = state.sliceDoc(Math.max(0, range.from - prefix.length), range.from)
+    const after = state.sliceDoc(range.to, Math.min(state.doc.length, range.to + suffix.length))
+    if (before === prefix && after === suffix) {
+      return {
+        changes: [
+          { from: range.from - prefix.length, to: range.from, insert: '' },
+          { from: range.to, to: range.to + suffix.length, insert: '' },
+        ],
+        range: EditorSelection.range(range.from - prefix.length, range.to - prefix.length),
+      }
+    }
+
     const insert = prefix + selected + suffix
     return {
       changes: { from: range.from, to: range.to, insert },
