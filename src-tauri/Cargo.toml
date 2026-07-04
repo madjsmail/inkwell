@@ -4,11 +4,7 @@ resolver = "2"
 
 [package]
 name = "inkwell"
-<<<<<<< HEAD
-version = "0.6.0"
-=======
 version = "0.6.2"
->>>>>>> 3df9f67 (fix: redo, file handling and canvas)
 description = "A Tauri App"
 authors = ["you"]
 edition = "2021"

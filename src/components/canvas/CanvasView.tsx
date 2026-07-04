@@ -374,7 +374,7 @@ export function CanvasView() {
     if (color === prevDefaultColorRef.current && color !== defaultColor) {
       setColor(defaultColor)
     }
-    prevDefaultColorRef.current = defaultColor
+    // prevDefaultColorRef itself is advanced below, once shapes have also been migrated
   }, [defaultColor]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const updateCursor = useCallback((c: string) => {
@@ -566,6 +566,26 @@ export function CanvasView() {
     futureRef.current = []; shapesRef.current = next
     setCanUndo(true); setCanRedo(false); scheduleSave(); render()
   }, [scheduleSave, render])
+
+  // When the theme flips, migrate any existing shapes still using the *previous*
+  // theme's default ink color — so drawings made without an explicit color pick
+  // stay visible instead of turning invisible against the new background color.
+  // Shapes with an explicitly-picked color are left untouched. Not pushed onto
+  // the undo stack — this is a display fixup, not a user edit.
+  useEffect(() => {
+    const prevDefault = prevDefaultColorRef.current
+    prevDefaultColorRef.current = defaultColor
+    if (prevDefault === defaultColor) return
+    let changed = false
+    const updated = shapesRef.current.map(s => {
+      if (s.color === prevDefault) { changed = true; return { ...s, color: defaultColor } }
+      return s
+    })
+    if (!changed) return
+    shapesRef.current = updated
+    render()
+    scheduleSave()
+  }, [defaultColor, render, scheduleSave])
 
   const undo = useCallback(() => {
     if (!historyRef.current.length) return

@@ -125,8 +125,8 @@
     "semantic_hash": "e24288d44b7e286ffb5cf26f1c2737c2"
   },
   "src/components/canvas/CanvasView.tsx": {
-    "mtime": 1783188818.0599818,
-    "ast_hash": "c4b19a17a951fdb2cc28c06e10b05109",
+    "mtime": 1783190038.9532974,
+    "ast_hash": "d9ecee6562c05a65f1578c21132235fd",
     "semantic_hash": ""
   },
   "src/components/canvas/canvasCategoryElements.ts": {
@@ -230,9 +230,9 @@
     "semantic_hash": ""
   },
   "src/components/settings/SettingsDialog.tsx": {
-    "mtime": 1782980448.8126457,
-    "ast_hash": "60f1a45baece2f579745e28aaaac3a42",
-    "semantic_hash": "60f1a45baece2f579745e28aaaac3a42"
+    "mtime": 1783190079.0098362,
+    "ast_hash": "489f993a7b14dfb16cac0205898d97df",
+    "semantic_hash": ""
   },
   "src/components/settings/ThemeEditor.tsx": {
     "mtime": 1782980448.8127286,
@@ -365,9 +365,9 @@
     "semantic_hash": "9d308826357afbbce69212d6438054c8"
   },
   "src/lib/vault.ts": {
-    "mtime": 1783119286.4830298,
-    "ast_hash": "0da80b20ec47802759412c4fc9ddd1d8",
-    "semantic_hash": "0da80b20ec47802759412c4fc9ddd1d8"
+    "mtime": 1783189974.8702343,
+    "ast_hash": "6ac9d99aa8cae6d8841856e048a5457b",
+    "semantic_hash": ""
   },
   "src/main.tsx": {
     "mtime": 1782982863.773388,
@@ -375,9 +375,9 @@
     "semantic_hash": "912ed2887ab8f9be43f625930982407a"
   },
   "src/store/useAppStore.ts": {
-    "mtime": 1782980448.8147845,
-    "ast_hash": "06db92bad8ff8ac5e440e81e47d04203",
-    "semantic_hash": "06db92bad8ff8ac5e440e81e47d04203"
+    "mtime": 1783189924.5449533,
+    "ast_hash": "ac511119f281930567bd5803f34136b1",
+    "semantic_hash": ""
   },
   "src/types/index.ts": {
     "mtime": 1782980448.815051,

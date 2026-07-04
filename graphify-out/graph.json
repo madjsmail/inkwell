@@ -1308,7 +1308,7 @@
       "source_location": "L116",
       "_origin": "ast",
       "id": "src_tauri_gen_schemas_desktop_schema_urls_items",
-      "community": 43,
+      "community": 33,
       "norm_label": "items"
     },
     {
@@ -1488,7 +1488,7 @@
       "source_location": "L6508",
       "_origin": "ast",
       "id": "src_tauri_gen_schemas_desktop_schema_definitions_shellscopeentryallowedarg",
-      "community": 58,
+      "community": 16,
       "norm_label": "shellscopeentryallowedarg"
     },
     {
@@ -1498,7 +1498,7 @@
       "source_location": "L6509",
       "_origin": "ast",
       "id": "src_tauri_gen_schemas_desktop_schema_shellscopeentryallowedarg_description",
-      "community": 58,
+      "community": 16,
       "norm_label": "description"
     },
     {
@@ -1508,7 +1508,7 @@
       "source_location": "L6510",
       "_origin": "ast",
       "id": "src_tauri_gen_schemas_desktop_schema_shellscopeentryallowedarg_anyof",
-      "community": 58,
+      "community": 16,
       "norm_label": "anyof"
     },
     {
@@ -1518,7 +1518,7 @@
       "source_location": "L6536",
       "_origin": "ast",
       "id": "src_tauri_gen_schemas_desktop_schema_definitions_shellscopeentryallowedargs",
-      "community": 16,
+      "community": 58,
       "norm_label": "shellscopeentryallowedargs"
     },
     {
@@ -1528,7 +1528,7 @@
       "source_location": "L6537",
       "_origin": "ast",
       "id": "src_tauri_gen_schemas_desktop_schema_shellscopeentryallowedargs_description",
-      "community": 16,
+      "community": 58,
       "norm_label": "description"
     },
     {
@@ -1538,7 +1538,7 @@
       "source_location": "L6538",
       "_origin": "ast",
       "id": "src_tauri_gen_schemas_desktop_schema_shellscopeentryallowedargs_anyof",
-      "community": 16,
+      "community": 58,
       "norm_label": "anyof"
     },
     {
@@ -3205,7 +3205,7 @@
       "label": "bundle",
       "file_type": "code",
       "source_file": "src-tauri/tauri.conf.json",
-      "source_location": "L35",
+      "source_location": "L37",
       "_origin": "ast",
       "id": "src_tauri_tauri_conf_bundle",
       "community": 9,
@@ -3215,7 +3215,7 @@
       "label": "active",
       "file_type": "code",
       "source_file": "src-tauri/tauri.conf.json",
-      "source_location": "L36",
+      "source_location": "L38",
       "_origin": "ast",
       "id": "src_tauri_tauri_conf_bundle_active",
       "community": 9,
@@ -3225,7 +3225,7 @@
       "label": "targets",
       "file_type": "code",
       "source_file": "src-tauri/tauri.conf.json",
-      "source_location": "L37",
+      "source_location": "L39",
       "_origin": "ast",
       "id": "src_tauri_tauri_conf_bundle_targets",
       "community": 9,
@@ -3235,7 +3235,7 @@
       "label": "icon",
       "file_type": "code",
       "source_file": "src-tauri/tauri.conf.json",
-      "source_location": "L38",
+      "source_location": "L40",
       "_origin": "ast",
       "id": "src_tauri_tauri_conf_bundle_icon",
       "community": 9,
@@ -14614,7 +14614,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src-tauri/tauri.conf.json",
-      "source_location": "L35",
+      "source_location": "L37",
       "weight": 1.0,
       "source": "src_tauri_tauri_conf",
       "target": "src_tauri_tauri_conf_bundle",
@@ -14774,7 +14774,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src-tauri/tauri.conf.json",
-      "source_location": "L36",
+      "source_location": "L38",
       "weight": 1.0,
       "source": "src_tauri_tauri_conf_bundle",
       "target": "src_tauri_tauri_conf_bundle_active",
@@ -14784,7 +14784,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src-tauri/tauri.conf.json",
-      "source_location": "L38",
+      "source_location": "L40",
       "weight": 1.0,
       "source": "src_tauri_tauri_conf_bundle",
       "target": "src_tauri_tauri_conf_bundle_icon",
@@ -14794,7 +14794,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src-tauri/tauri.conf.json",
-      "source_location": "L37",
+      "source_location": "L39",
       "weight": 1.0,
       "source": "src_tauri_tauri_conf_bundle",
       "target": "src_tauri_tauri_conf_bundle_targets",
@@ -17077,7 +17077,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "src/components/canvas/CanvasView.tsx",
-      "source_location": "L804",
+      "source_location": "L824",
       "weight": 1.0,
       "source": "src_components_canvas_canvasview_canvasview",
       "target": "src_components_canvas_canvasview_normalizerect",
@@ -17110,7 +17110,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "src/components/canvas/CanvasView.tsx",
-      "source_location": "L613",
+      "source_location": "L633",
       "weight": 1.0,
       "source": "src_components_canvas_canvasview_canvasview",
       "target": "src_components_canvas_canvasview_offsetshapes",
@@ -17121,7 +17121,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "src/components/canvas/CanvasView.tsx",
-      "source_location": "L707",
+      "source_location": "L727",
       "weight": 1.0,
       "source": "src_components_canvas_canvasview_canvasview",
       "target": "src_components_canvas_canvasview_gethandleat",
@@ -17154,7 +17154,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "src/components/canvas/CanvasView.tsx",
-      "source_location": "L811",
+      "source_location": "L831",
       "weight": 1.0,
       "source": "src_components_canvas_canvasview_canvasview",
       "target": "src_components_canvas_canvasview_applyboundstoshape",
@@ -17165,7 +17165,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "src/components/canvas/CanvasView.tsx",
-      "source_location": "L829",
+      "source_location": "L849",
       "weight": 1.0,
       "source": "src_components_canvas_canvasview_canvasview",
       "target": "src_components_canvas_canvasview_offsetshape",
@@ -17187,7 +17187,7 @@
       "context": "argument",
       "confidence": "INFERRED",
       "source_file": "src/components/canvas/CanvasView.tsx",
-      "source_location": "L1069",
+      "source_location": "L1089",
       "weight": 1.0,
       "source": "src_components_canvas_canvasview_canvasview",
       "target": "src_components_canvas_canvasview_duplicateshape",
@@ -17375,7 +17375,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/components/canvas/CanvasView.tsx",
-      "source_location": "L597",
+      "source_location": "L617",
       "weight": 1.0,
       "source": "src_components_canvas_canvasview_canvasview",
       "target": "src_components_canvas_canvastemplates_diagramtemplate"
@@ -17397,7 +17397,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/components/canvas/CanvasView.tsx",
-      "source_location": "L735",
+      "source_location": "L755",
       "weight": 1.0,
       "source": "src_components_canvas_canvasview_canvasview",
       "target": "src_components_canvas_canvastypes_hittest"
@@ -17419,7 +17419,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/components/canvas/CanvasView.tsx",
-      "source_location": "L654",
+      "source_location": "L674",
       "weight": 1.0,
       "source": "src_components_canvas_canvasview_canvasview",
       "target": "src_components_canvas_canvastypes_uid"
@@ -21284,7 +21284,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/components/layout/AppShell.tsx",
-      "source_location": "L151",
+      "source_location": "L156",
       "weight": 1.0,
       "source": "src_components_layout_appshell_appshell",
       "target": "src_lib_deleteactions_confirmdeletefolderbyid"
@@ -21295,7 +21295,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/components/layout/AppShell.tsx",
-      "source_location": "L144",
+      "source_location": "L149",
       "weight": 1.0,
       "source": "src_components_layout_appshell_appshell",
       "target": "src_lib_deleteactions_confirmdeletenote"
@@ -21306,7 +21306,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/components/layout/AppShell.tsx",
-      "source_location": "L141",
+      "source_location": "L146",
       "weight": 1.0,
       "source": "src_components_layout_appshell_appshell",
       "target": "src_lib_deleteactions_confirmdeleteselectednotes"
@@ -21383,7 +21383,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/components/layout/AppShell.tsx",
-      "source_location": "L73",
+      "source_location": "L78",
       "weight": 1.0,
       "source": "src_components_layout_appshell_appshell",
       "target": "src_lib_vault_addrecentvault"
@@ -21394,7 +21394,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/components/layout/AppShell.tsx",
-      "source_location": "L70",
+      "source_location": "L75",
       "weight": 1.0,
       "source": "src_components_layout_appshell_appshell",
       "target": "src_lib_vault_getlastvaultpath"
@@ -21405,7 +21405,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/components/layout/AppShell.tsx",
-      "source_location": "L90",
+      "source_location": "L95",
       "weight": 1.0,
       "source": "src_components_layout_appshell_appshell",
       "target": "src_lib_vault_readappdata"
@@ -21416,7 +21416,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/components/layout/AppShell.tsx",
-      "source_location": "L72",
+      "source_location": "L77",
       "weight": 1.0,
       "source": "src_components_layout_appshell_appshell",
       "target": "src_lib_vault_readvaultfs"
@@ -21427,7 +21427,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/components/layout/AppShell.tsx",
-      "source_location": "L99",
+      "source_location": "L104",
       "weight": 1.0,
       "source": "src_components_layout_appshell_appshell",
       "target": "src_lib_vault_writeappdata"
@@ -29683,5 +29683,5 @@
       "source_file": "public/excalidraw-frame.html"
     }
   ],
-  "built_at_commit": "a8e34882045a414fad80b93f7579fdb429ce46ae"
+  "built_at_commit": "f525ba4f99eb269e0703439338dc8297683b5ddf"
 }

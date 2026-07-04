@@ -1,7 +1,7 @@
 # Graph Report - inkwell  (2026-07-04)
 
 ## Corpus Check
-- 85 files · ~164,539 words
+- 85 files · ~164,736 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
@@ -10,7 +10,7 @@
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `a8e34882`
+- Built from commit: `f525ba4f`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -214,7 +214,7 @@ Nodes (17): DragItemData, DropIndicator, DropPosition, findFolderChildren(), fin
 
 ### Community 16 - "Tauri Desktop Capability Schema"
 Cohesion: 0.12
-Nodes (16): anyOf, description, definitions, Application, Number, PermissionEntry, ShellScopeEntryAllowedArgs, Target (+8 more)
+Nodes (16): anyOf, description, definitions, Application, Number, PermissionEntry, ShellScopeEntryAllowedArg, Target (+8 more)
 
 ### Community 17 - "Tauri macOS Capability Schema"
 Cohesion: 0.13
@@ -277,8 +277,8 @@ Cohesion: 0.20
 Nodes (10): $ref, description, items, type, uniqueItems, description, items, type (+2 more)
 
 ### Community 33 - "Desktop Schema Windows Config"
-Cohesion: 0.22
-Nodes (9): type, webviews, windows, description, items, type, description, items (+1 more)
+Cohesion: 0.20
+Nodes (10): type, webviews, windows, items, description, items, type, description (+2 more)
 
 ### Community 34 - "macOS Schema Array Defs"
 Cohesion: 0.20
@@ -313,8 +313,8 @@ Cohesion: 0.25
 Nodes (7): QuickNoteEditor, QuickNoteEditorHandle, QuickNoteEditorProps, highlightMarkPlugin, markdownHighlighting, slashCommandCompletion, tablePlugin
 
 ### Community 43 - "Desktop Schema Remote Capability"
-Cohesion: 0.22
-Nodes (9): description, properties, required, type, CapabilityRemote, urls, description, items (+1 more)
+Cohesion: 0.25
+Nodes (8): description, properties, required, type, CapabilityRemote, urls, description, type
 
 ### Community 44 - "macOS Schema Remote Capability"
 Cohesion: 0.25
@@ -366,7 +366,7 @@ Nodes (4): description, required, type, Capability
 
 ### Community 58 - "Desktop Shell Scope Args"
 Cohesion: 0.67
-Nodes (3): ShellScopeEntryAllowedArg, anyOf, description
+Nodes (3): ShellScopeEntryAllowedArgs, anyOf, description
 
 ### Community 59 - "Desktop Schema Value Type"
 Cohesion: 0.67
