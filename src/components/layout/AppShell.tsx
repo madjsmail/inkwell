@@ -46,6 +46,11 @@ export function AppShell() {
       theme: dark ? 'dark' : 'light',
       customThemes,
     })
+    // Seed per-mode keys so toggleTheme can round-trip correctly
+    const modeKey = dark ? 'inkwell-last-dark-theme' : 'inkwell-last-light-theme'
+    if (!localStorage.getItem(modeKey)) {
+      localStorage.setItem(modeKey, resolvedId)
+    }
   }, [])
 
   // Restore native vibrancy if it was enabled last session
