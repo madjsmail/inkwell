@@ -15,9 +15,10 @@ import { useAppStore } from '../../store/useAppStore'
 import { confirmDeleteNote, confirmDeleteSelectedNotes, confirmDeleteFolderById } from '../../lib/deleteActions'
 import { readVaultFS, writeAppData, readAppData, addRecentVault, getLastVaultPath } from '../../lib/vault'
 import type { AppData } from '../../lib/vault'
+import { comboMatches } from '../../lib/shortcuts'
 
 export function AppShell() {
-  const { activeView, setSearchOpen, vaultPath, openVault, toggleSidebar, sidebarOpen, initPlanner } = useAppStore()
+  const { activeView, setSearchOpen, vaultPath, openVault, toggleSidebar, sidebarOpen, initPlanner, openExternalNote } = useAppStore()
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Restore theme from localStorage on mount
@@ -106,26 +107,35 @@ export function AppShell() {
     })
   }, [vaultPath])
 
-  // CMD+K / Ctrl+K → search; Ctrl+B → toggle sidebar
+  // Search / toggle sidebar / open external file — user-remappable, see Settings > Shortcuts
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+      const { shortcuts, recordingShortcut } = useAppStore.getState()
+      if (recordingShortcut) return
+      if (comboMatches(e, shortcuts.search)) {
         e.preventDefault()
         setSearchOpen(true)
+        return
       }
-      if ((e.metaKey || e.ctrlKey) && e.key === 'b') {
+      if (comboMatches(e, shortcuts.toggleSidebar)) {
         e.preventDefault()
         toggleSidebar()
+        return
+      }
+      if (comboMatches(e, shortcuts.openFile)) {
+        e.preventDefault()
+        openExternalNote()
       }
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [setSearchOpen, toggleSidebar])
+  }, [setSearchOpen, toggleSidebar, openExternalNote])
 
   // Delete key handler
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key !== 'Delete' && e.key !== 'Backspace') return
+      if (useAppStore.getState().recordingShortcut) return
 
       const target = e.target as HTMLElement
       if (

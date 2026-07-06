@@ -53,6 +53,8 @@ export interface AppData {
   boardColumns: BoardColumn[]
   boardTasks: BoardTask[]
   noteMeta: Record<string, { attachments: Attachment[]; linkedItems: LinkedItem[] }>
+  /** Absolute paths of standalone .md files opened into this vault via "Open File". */
+  externalFiles?: string[]
 }
 
 export interface VaultData {
@@ -143,6 +145,29 @@ export function clearFileSearchCache(vaultPath?: string): void {
   for (const key of fileSearchCache.keys()) {
     if (key.startsWith(`${vaultPath}::`)) fileSearchCache.delete(key)
   }
+}
+
+// An external note (see "External files" below) doesn't live inside the current
+// vault, so embeds/images referenced from it (Obsidian `![[filename]]` syntax, or
+// relative image paths) can't be found by searching the current vaultPath — they
+// live in the note's OWN source vault instead. Walk up from the file looking for
+// an `.obsidian` folder (Obsidian's vault-root marker) so a proper vault-wide
+// search can be rooted there too; fall back to the file's immediate parent
+// directory (covers images sitting next to the note or in a subfolder of it).
+export async function findExternalSearchRoot(absolutePath: string): Promise<string> {
+  const immediateParent = absolutePath.substring(0, absolutePath.lastIndexOf('/')) || '/'
+  if (!isTauri) return immediateParent
+  try {
+    const { exists } = await import('@tauri-apps/plugin-fs')
+    let dir = immediateParent
+    for (let i = 0; i < 8; i++) {
+      if (await exists(`${dir}/.obsidian`)) return dir
+      const parent = dir.substring(0, dir.lastIndexOf('/'))
+      if (!parent || parent === dir) break
+      dir = parent
+    }
+  } catch { /* fall through */ }
+  return immediateParent
 }
 
 export async function findFileInVault(vaultPath: string, filename: string): Promise<string | null> {
@@ -296,6 +321,25 @@ export async function readVaultFS(vaultPath: string): Promise<VaultData | null> 
     allNotes.push(...childNotes)
   }
 
+  // External files opened via "Open File" — standalone .md files that live outside
+  // this vault's directory tree. Re-read fresh from disk on every vault open so
+  // edits made elsewhere show up; silently drop entries whose file has moved/gone
+  // and persist the pruned list so they don't keep coming back as ghosts.
+  const externalPaths = appData.externalFiles ?? []
+  if (externalPaths.length > 0) {
+    const stillValid: string[] = []
+    for (const path of externalPaths) {
+      const note = await readExternalNote(path)
+      if (note) {
+        allNotes.push(note)
+        stillValid.push(path)
+      }
+    }
+    if (stillValid.length !== externalPaths.length) {
+      writeAppData(vaultPath, { ...appData, externalFiles: stillValid }).catch(console.error)
+    }
+  }
+
   return {
     folders: rootFolders,
     notes: allNotes,
@@ -356,7 +400,7 @@ export async function renameItem(oldPath: string, newPath: string): Promise<void
 // ── App data ──────────────────────────────────────────────────────────────────
 
 function emptyAppData(): AppData {
-  return { version: 1, tasks: [], boards: [], boardColumns: [], boardTasks: [], noteMeta: {} }
+  return { version: 1, tasks: [], boards: [], boardColumns: [], boardTasks: [], noteMeta: {}, externalFiles: [] }
 }
 
 export async function readAppData(vaultPath: string): Promise<AppData | null> {
@@ -677,4 +721,78 @@ export async function saveQuickNote(vaultPath: string, text: string): Promise<No
 
   await writeNoteFile(note)
   return note
+}
+
+// ── External files ────────────────────────────────────────────────────────────
+// "Open File" lets the user edit a single standalone .md file that lives outside
+// the current vault's directory tree (e.g. a README elsewhere on disk), without
+// switching vaults. These notes are tracked by absolute path only — inkwell never
+// writes frontmatter into them, so a foreign file's existing format/frontmatter
+// (if any) is left completely alone; edits are saved back as plain raw text via
+// saveNote() in lib/fs.ts, never writeNoteFile()'s frontmatter-wrapping writer.
+// The note id is derived from the path itself (`ext:<path>`) so re-opening the
+// same file, or reloading the vault, resolves to the same stable identity.
+
+export function externalNoteId(absolutePath: string): string {
+  return `ext:${absolutePath}`
+}
+
+export async function readExternalNote(absolutePath: string): Promise<Note | null> {
+  if (!isTauri) return null
+  try {
+    const { readTextFile, exists } = await import('@tauri-apps/plugin-fs')
+    if (!await exists(absolutePath)) return null
+    const raw = await readTextFile(absolutePath)
+    const filename = absolutePath.split('/').pop() ?? absolutePath
+    const now = new Date()
+    const searchRoot = await findExternalSearchRoot(absolutePath)
+    return {
+      id: externalNoteId(absolutePath),
+      title: extractTitle(raw, filename),
+      content: raw,
+      path: absolutePath,
+      folder: null,
+      tags: [],
+      pinned: false,
+      createdAt: now,
+      updatedAt: now,
+      wordCount: raw.trim().split(/\s+/).filter(Boolean).length,
+      attachments: [],
+      linkedItems: [],
+      external: true,
+      searchRoot,
+    }
+  } catch { return null }
+}
+
+export async function pickExternalMarkdownFile(): Promise<string | null> {
+  if (!isTauri) return null
+  const { open } = await import('@tauri-apps/plugin-dialog')
+  const result = await open({
+    directory: false,
+    multiple: false,
+    title: 'Open Markdown File',
+    filters: [{ name: 'Markdown', extensions: ['md', 'markdown'] }],
+  })
+  if (typeof result === 'string') return result
+  return null
+}
+
+export async function addExternalFileToVault(vaultPath: string, absolutePath: string): Promise<void> {
+  const data = (await readAppData(vaultPath)) ?? emptyAppData()
+  const existing = data.externalFiles ?? []
+  if (existing.includes(absolutePath)) return
+  await writeAppData(vaultPath, { ...data, externalFiles: [...existing, absolutePath] })
+}
+
+export async function removeExternalFileFromVault(vaultPath: string, absolutePath: string): Promise<void> {
+  const data = (await readAppData(vaultPath)) ?? emptyAppData()
+  const existing = data.externalFiles ?? []
+  await writeAppData(vaultPath, { ...data, externalFiles: existing.filter(p => p !== absolutePath) })
+}
+
+export async function renameExternalFileInVault(vaultPath: string, oldPath: string, newPath: string): Promise<void> {
+  const data = (await readAppData(vaultPath)) ?? emptyAppData()
+  const existing = data.externalFiles ?? []
+  await writeAppData(vaultPath, { ...data, externalFiles: existing.map(p => p === oldPath ? newPath : p) })
 }

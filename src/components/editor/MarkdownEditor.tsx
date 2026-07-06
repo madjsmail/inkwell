@@ -162,7 +162,7 @@ export function MarkdownEditor({ noteId, content, onScrollerReady }: MarkdownEdi
         markdownHighlighting,
         highlightMarkPlugin,
         tablePlugin,
-        createFileEmbedPlugin(vaultPath ?? '', handleRemoveEmbed),
+        createFileEmbedPlugin(vaultPath ?? '', handleRemoveEmbed, useAppStore.getState().notes.find(n => n.id === noteId)?.searchRoot),
         slashCommandCompletion,
         EditorView.lineWrapping,
         ...searchHighlightExtension,

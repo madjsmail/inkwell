@@ -11,6 +11,7 @@ import {
   PenLine,
   PenSquare,
   CalendarDays,
+  FileInput,
 } from "lucide-react";
 import { SettingsDialog } from '../settings/SettingsDialog'
 import {
@@ -142,7 +143,10 @@ function NoteRow({
   } = useDraggable({
     id: dndId,
     data: { type: "note", id: note.id, folderId: note.folder } satisfies DragItemData,
-    disabled: isRenaming,
+    // External files aren't part of the folder tree — moveNote()/reorderNote()
+    // assume vault-relative paths, so dragging one into a folder would try to
+    // relocate the real file under the vault. Keep them out of the DnD tree entirely.
+    disabled: isRenaming || note.external,
   });
 
   const { setNodeRef: setDropRef } = useDroppable({
@@ -165,7 +169,7 @@ function NoteRow({
         ref={setDragRef}
         className={cn(
           treeRowClass,
-          "cursor-grab active:cursor-grabbing pr-1",
+          note.external ? "pr-1" : "cursor-grab active:cursor-grabbing pr-1",
           !isSelected && "hover:bg-surface",
           isSelected && "bg-active",
           isDragging && "opacity-20 pointer-events-none",
@@ -215,7 +219,7 @@ function NoteRow({
             onClick={(e) => { e.stopPropagation(); onDelete(); }}
             onPointerDown={(e) => e.stopPropagation()}
             tabIndex={-1}
-            title="Delete note"
+            title={note.external ? "Remove from library" : "Delete note"}
           >
             <Trash2 className="w-3 h-3" />
           </button>
@@ -452,6 +456,7 @@ export function Sidebar() {
     setActiveView,
     createNote,
     createFolder,
+    openExternalNote,
     moveNotes,
     reorderNote,
     moveFolder,
@@ -495,6 +500,7 @@ export function Sidebar() {
       if (e.key !== "Backspace" && e.key !== "Delete") return;
       // Let the canvas view handle its own deletions
       if (activeView === 'canvas') return;
+      if (useAppStore.getState().recordingShortcut) return;
       const target = e.target as HTMLElement;
       if (
         target.tagName === "INPUT" ||
@@ -512,7 +518,8 @@ export function Sidebar() {
   }, [selectedNoteIds, activeView]);
 
   const pinnedNotes = notes.filter((n) => n.pinned);
-  const rootNotes = notes.filter((n) => n.folder === null);
+  const rootNotes = notes.filter((n) => n.folder === null && !n.external);
+  const externalNotes = notes.filter((n) => n.external);
   const rootFolderIds = folders.map((f) => f.id);
 
   const [contextMenu, setContextMenu] = useState<{
@@ -766,6 +773,7 @@ export function Sidebar() {
     e: React.MouseEvent,
     noteId: string,
     noteTitle: string,
+    external?: boolean,
   ) => {
     e.preventDefault();
     e.stopPropagation();
@@ -774,11 +782,16 @@ export function Sidebar() {
       y: e.clientY,
       items: [
         { label: "Rename", onClick: () => startRename(noteId) },
-        {
-          label: "Delete note",
-          destructive: true,
-          onClick: () => confirmDeleteNote(noteId, noteTitle),
-        },
+        external
+          ? {
+            label: "Remove from library",
+            onClick: () => confirmDeleteNote(noteId, noteTitle, true),
+          }
+          : {
+            label: "Delete note",
+            destructive: true,
+            onClick: () => confirmDeleteNote(noteId, noteTitle),
+          },
       ],
     });
   };
@@ -798,6 +811,7 @@ export function Sidebar() {
 
   const pinnedOrderedIds = pinnedNotes.map((n) => n.id);
   const rootNoteOrderedIds = rootNotes.map((n) => n.id);
+  const externalOrderedIds = externalNotes.map((n) => n.id);
 
   return (
     <DndContext
@@ -836,6 +850,13 @@ export function Sidebar() {
               title="New note"
             >
               <PenLine className="w-4 h-4" />
+            </button>
+            <button
+              className="w-7 h-7 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-surface transition-colors"
+              onClick={() => openExternalNote()}
+              title="Open file... (⌘O)"
+            >
+              <FileInput className="w-4 h-4" />
             </button>
           </div>
         </div>
@@ -885,10 +906,10 @@ export function Sidebar() {
                     isSelected={isNoteSelected}
                     orderedIds={pinnedOrderedIds}
                     paddingLeft={ROW_PADDING}
-                    onContextMenu={(e) => openNoteContextMenu(e, note.id, note.title)}
+                    onContextMenu={(e) => openNoteContextMenu(e, note.id, note.title, note.external)}
                     dropBefore={dropIndicator?.overId === noteId && dropIndicator.position === "before"}
                     dropAfter={dropIndicator?.overId === noteId && dropIndicator.position === "after"}
-                    onDelete={() => confirmDeleteNote(note.id, note.title)}
+                    onDelete={() => confirmDeleteNote(note.id, note.title, note.external)}
                     renamingId={renamingId}
                     onStartRename={startRename}
                     onCommitRename={commitRename}
@@ -972,6 +993,34 @@ export function Sidebar() {
               </p>
             )}
           </div>
+
+          {externalNotes.length > 0 && (
+            <div>
+              <p className="uppercase text-[10px] tracking-widest text-tertiary px-2 mb-1">
+                Open Files
+              </p>
+              {externalNotes.map((note) => {
+                const isNoteSelected = selectedNoteIds.includes(note.id);
+                return (
+                  <NoteRow
+                    key={note.id}
+                    note={note}
+                    isSelected={isNoteSelected}
+                    orderedIds={externalOrderedIds}
+                    paddingLeft={ROW_PADDING}
+                    onContextMenu={(e) => openNoteContextMenu(e, note.id, note.title, true)}
+                    dropBefore={false}
+                    dropAfter={false}
+                    onDelete={() => confirmDeleteNote(note.id, note.title, true)}
+                    renamingId={renamingId}
+                    onStartRename={startRename}
+                    onCommitRename={commitRename}
+                    onCancelRename={cancelRename}
+                  />
+                );
+              })}
+            </div>
+          )}
 
           <div>
             <p className="uppercase text-[10px] tracking-widest text-tertiary px-2 mb-1">

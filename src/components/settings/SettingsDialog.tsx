@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
-import { Settings, X, Palette, Sun, Moon, Type, Folder, FolderOpen, Info, ChevronRight, Check, Plus, Pencil, Trash2, GitBranch, Eye, EyeOff, ExternalLink, Sparkles } from 'lucide-react'
+import { Settings, X, Palette, Sun, Moon, Type, Folder, FolderOpen, Info, ChevronRight, Check, Plus, Pencil, Trash2, GitBranch, Eye, EyeOff, ExternalLink, Sparkles, Keyboard, RotateCcw, AlertTriangle } from 'lucide-react'
 import { useAppStore } from '../../store/useAppStore'
 import { cn } from '../../lib/utils'
 import { THEMES, DARK_THEMES, LIGHT_THEMES, type CustomTheme } from '../../lib/themes'
@@ -12,10 +12,11 @@ import {
 import {
   getGithubToken, setGithubToken, getGithubOwner, setGithubOwner, listRepos, type GhRepo,
 } from '../../lib/github'
+import { SHORTCUT_DEFS, formatCombo, hasModifier, eventToCombo } from '../../lib/shortcuts'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type Section = 'themes' | 'appearance' | 'editor' | 'features' | 'vault' | 'github' | 'about'
+type Section = 'themes' | 'appearance' | 'editor' | 'features' | 'shortcuts' | 'vault' | 'github' | 'about'
 
 // ─── Font options ─────────────────────────────────────────────────────────────
 
@@ -48,6 +49,7 @@ const NAV_ITEMS: Array<{ id: Section; label: string; icon: React.FC<{ className?
   { id: 'appearance', label: 'Appearance', icon: Sun },
   { id: 'editor', label: 'Editor', icon: Type },
   { id: 'features', label: 'Features', icon: Sparkles },
+  { id: 'shortcuts', label: 'Shortcuts', icon: Keyboard },
   { id: 'vault', label: 'Vaults', icon: Folder },
   { id: 'github', label: 'GitHub', icon: GitBranch },
   { id: 'about', label: 'About', icon: Info },
@@ -457,6 +459,9 @@ export function SettingsDialog() {
                 </>
               )}
 
+              {/* ── Shortcuts ── */}
+              {section === 'shortcuts' && <ShortcutsSection />}
+
               {/* ── Vaults ── */}
               {section === 'vault' && (
                 <VaultSection onClose={() => setOpen(false)} />
@@ -589,6 +594,106 @@ function ThemeCard({
         </div>
       )}
     </button>
+  )
+}
+
+// ─── ShortcutsSection ─────────────────────────────────────────────────────────
+
+function ShortcutsSection() {
+  const { shortcuts, setShortcut, resetShortcuts } = useAppStore()
+  const [recordingId, setRecordingId] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  // The app-level shortcut handlers (AppShell, EditorPane, Sidebar) are separate
+  // `window` keydown listeners — capture phase + stopImmediatePropagation alone
+  // isn't reliable against them (listeners on the same target that share a node
+  // fire in registration order, not strictly capture-before-bubble, so an
+  // earlier-registered bubble listener can still run first). The `recordingShortcut`
+  // store flag is the real guard: every other handler checks it and bails out.
+  useEffect(() => {
+    if (!recordingId) {
+      useAppStore.setState({ recordingShortcut: false })
+      return
+    }
+    useAppStore.setState({ recordingShortcut: true })
+    const handler = (e: KeyboardEvent) => {
+      e.preventDefault()
+      e.stopImmediatePropagation()
+      if (e.key === 'Escape') { setRecordingId(null); return }
+      if (['Control', 'Meta', 'Shift', 'Alt'].includes(e.key)) return // wait for the real key
+
+      const combo = eventToCombo(e)
+      if (!hasModifier(combo)) {
+        setError("Shortcut must include ⌘/Ctrl, Shift, or Alt so it doesn't fire while typing.")
+        return
+      }
+      const conflict = Object.entries(shortcuts).find(([id, c]) => id !== recordingId && c === combo)
+      if (conflict) {
+        const label = SHORTCUT_DEFS.find(d => d.id === conflict[0])?.label ?? conflict[0]
+        setError(`${formatCombo(combo)} is already used by "${label}".`)
+        return
+      }
+      setShortcut(recordingId, combo)
+      setRecordingId(null)
+      setError(null)
+    }
+    window.addEventListener('keydown', handler, true)
+    return () => {
+      window.removeEventListener('keydown', handler, true)
+      useAppStore.setState({ recordingShortcut: false })
+    }
+  }, [recordingId, shortcuts, setShortcut])
+
+  return (
+    <div className="space-y-1">
+      <div className="flex items-center justify-between mb-2">
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-tertiary">In-app shortcuts</p>
+        <button
+          onClick={() => { resetShortcuts(); setRecordingId(null); setError(null) }}
+          className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+        >
+          <RotateCcw className="w-3 h-3" />
+          Reset to defaults
+        </button>
+      </div>
+
+      <div className="rounded-lg border border-border divide-y divide-border overflow-hidden">
+        {SHORTCUT_DEFS.map(def => {
+          const combo = shortcuts[def.id] ?? def.defaultCombo
+          const recording = recordingId === def.id
+          return (
+            <div key={def.id} className="flex items-center justify-between gap-4 px-3 py-2.5">
+              <div className="min-w-0">
+                <p className="text-xs font-medium text-foreground">{def.label}</p>
+                <p className="text-[10px] text-muted-foreground mt-0.5">{def.description}</p>
+              </div>
+              <button
+                onClick={() => { setRecordingId(def.id); setError(null) }}
+                className={cn(
+                  'shrink-0 min-w-[92px] px-2.5 py-1.5 rounded-md text-xs font-mono text-center border transition-colors',
+                  recording
+                    ? 'border-accent text-accent bg-accent/10'
+                    : 'border-border text-foreground hover:border-accent/50',
+                )}
+              >
+                {recording ? 'Press keys…' : formatCombo(combo)}
+              </button>
+            </div>
+          )
+        })}
+      </div>
+
+      {error && (
+        <p className="flex items-center gap-1.5 text-xs text-red-400 pt-1">
+          <AlertTriangle className="w-3 h-3 shrink-0" />
+          {error}
+        </p>
+      )}
+
+      {recordingId && !error && (
+        <p className="text-[10px] text-tertiary pt-1">Press a key combination, or Escape to cancel.</p>
+      )}
+    </div>
   )
 }
 

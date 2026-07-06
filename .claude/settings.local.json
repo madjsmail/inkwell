@@ -3,7 +3,9 @@
     "allow": [
       "Bash(npx tsc *)",
       "Bash(python3 -c ' *)",
-      "Bash(git log *)"
+      "Bash(git log *)",
+      "Bash(awk '/^## God Nodes/,/^## Suggested Questions/' graphify-out/GRAPH_REPORT.md)",
+      "Bash(awk '/^## Suggested Questions/,0' graphify-out/GRAPH_REPORT.md)"
     ]
   }
 }

@@ -16,6 +16,10 @@ export interface Note {
   wordCount: number
   attachments: Attachment[]
   linkedItems: LinkedItem[]
+  /** True for a standalone .md file opened from outside the vault tree (see vault.ts "External files"). */
+  external?: boolean
+  /** For external notes: extra directory to search when resolving embeds/images that live in the note's own source vault, not this one. */
+  searchRoot?: string
 }
 
 export interface Folder {

@@ -30,7 +30,14 @@ import {
   writeBoardsFile,
   writePlannerFile,
   readPlannerFile,
+  pickExternalMarkdownFile,
+  readExternalNote,
+  addExternalFileToVault,
+  removeExternalFileFromVault,
+  renameExternalFileInVault,
 } from "../lib/vault";
+import { saveNote } from "../lib/fs";
+import { loadShortcuts, saveShortcuts, DEFAULT_SHORTCUTS } from "../lib/shortcuts";
 
 // ─── Active-vault state file ──────────────────────────────────────────────────
 // Written to ~/.inkwell/active-vault whenever the user opens a vault.
@@ -161,6 +168,13 @@ interface AppState {
   ) => void;
   sidebarGlass: boolean;
   setSidebarGlass: (enabled: boolean) => void;
+  shortcuts: Record<string, string>;
+  setShortcut: (id: string, combo: string) => void;
+  resetShortcuts: () => void;
+  /** True while the Settings > Shortcuts recorder is capturing a new key combo — every
+   * other window-level shortcut handler checks this first so it doesn't also fire on
+   * the keystroke being recorded. Transient UI state, not persisted. */
+  recordingShortcut: boolean;
   canvasEnabled: boolean;
   setCanvasEnabled: (enabled: boolean) => void;
   // Canvas data is stored globally (independent of whichever vault is open) by
@@ -216,6 +230,7 @@ interface AppState {
     insertBeforeFolderId: string | null,
   ) => void;
   updateNote: (id: string, content: string) => void;
+  openExternalNote: () => Promise<void>;
   setActiveTask: (id: string | null) => void;
   sidebarOpen: boolean;
   toggleSidebar: () => void;
@@ -514,6 +529,8 @@ export const useAppStore = create<AppState>((set, get) => ({
     "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
   editorLineHeight: localStorage.getItem("inkwell-editor-lineHeight") ?? "1.7",
   sidebarGlass: localStorage.getItem("inkwell-sidebar-glass") === "true",
+  shortcuts: loadShortcuts(),
+  recordingShortcut: false,
   canvasEnabled: localStorage.getItem("inkwell-canvas-enabled") === "true",
   canvasLinkedVaultPath: localStorage.getItem("inkwell-canvas-linked-vault"),
   plannerEnabled: localStorage.getItem("inkwell-planner-enabled") !== "false",
@@ -774,6 +791,17 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
   },
 
+  setShortcut: (id, combo) => {
+    const shortcuts = { ...get().shortcuts, [id]: combo };
+    saveShortcuts(shortcuts);
+    set({ shortcuts });
+  },
+
+  resetShortcuts: () => {
+    saveShortcuts(DEFAULT_SHORTCUTS);
+    set({ shortcuts: { ...DEFAULT_SHORTCUTS } });
+  },
+
   setCanvasEnabled: (enabled) => {
     localStorage.setItem("inkwell-canvas-enabled", String(enabled));
     set({ canvasEnabled: enabled });
@@ -877,6 +905,36 @@ export const useAppStore = create<AppState>((set, get) => ({
       folders: folderId
         ? addNoteToFolderTree(s.folders, folderId, newNote)
         : s.folders,
+      activeView: "notes",
+    }));
+  },
+
+  openExternalNote: async () => {
+    const { vaultPath, notes } = get();
+    if (!vaultPath) return;
+    const path = await pickExternalMarkdownFile();
+    if (!path) return;
+
+    const existing = notes.find((n) => n.path === path);
+    if (existing) {
+      set({
+        selectedNoteIds: [existing.id],
+        lastSelectedNoteId: existing.id,
+        selectedFolderId: null,
+        activeView: "notes",
+      });
+      return;
+    }
+
+    const note = await readExternalNote(path);
+    if (!note) return;
+    await addExternalFileToVault(vaultPath, path);
+
+    set((s) => ({
+      notes: [note, ...s.notes],
+      selectedNoteIds: [note.id],
+      lastSelectedNoteId: note.id,
+      selectedFolderId: null,
       activeView: "notes",
     }));
   },
@@ -1036,9 +1094,14 @@ export const useAppStore = create<AppState>((set, get) => ({
       const updatedNotes = s.notes.map((n) =>
         n.id === id ? { ...n, content, title, wordCount, updatedAt } : n,
       );
-      // Write file to disk (fire-and-forget — AppShell debounce handles save status)
+      // Write file to disk (fire-and-forget — AppShell debounce handles save status).
+      // External files never get inkwell's frontmatter wrapping — they're saved as
+      // plain raw text so a foreign file's existing format is left untouched.
       const updated = updatedNotes.find((n) => n.id === id);
-      if (updated) writeNoteFile(updated).catch(console.error);
+      if (updated) {
+        if (updated.external) saveNote(updated.path, updated.content).catch(console.error);
+        else writeNoteFile(updated).catch(console.error);
+      }
       return {
         notes: updatedNotes,
         folders: updateFolderNotes(s.folders, id, (n) => ({
@@ -1061,14 +1124,22 @@ export const useAppStore = create<AppState>((set, get) => ({
     const content = setContentTitle(note.content, trimmed);
     const updatedAt = new Date();
 
-    const folderAbsPath = note.folder
-      ? buildFolderPath(vaultPath, note.folder)
-      : (vaultPath ?? ".");
+    // External files rename in place — they live outside the vault tree, so
+    // (unlike regular notes) the new path must stay in the file's own directory,
+    // never move it under vaultPath.
+    const folderAbsPath = note.external
+      ? note.path.substring(0, note.path.lastIndexOf("/"))
+      : note.folder
+        ? buildFolderPath(vaultPath, note.folder)
+        : (vaultPath ?? ".");
     const newPath = `${folderAbsPath}/${slugifyTitle(trimmed)}.md`;
 
     // Rename file on disk (old path → new path)
     if (note.path !== newPath) {
       renameItem(note.path, newPath).catch(console.error);
+      if (note.external && vaultPath) {
+        renameExternalFileInVault(vaultPath, note.path, newPath).catch(console.error);
+      }
     }
 
     set((s) => ({
@@ -1113,11 +1184,17 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (ids.length === 0) return;
     const idSet = new Set(ids);
 
-    // Delete files from disk
-    const { notes } = get();
+    // Delete files from disk — except external files, which inkwell doesn't own.
+    // Removing one from the sidebar only untracks it; the file itself is untouched.
+    const { notes, vaultPath } = get();
     for (const id of ids) {
       const note = notes.find((n) => n.id === id);
-      if (note) deleteNoteFile(note.path).catch(console.error);
+      if (!note) continue;
+      if (note.external) {
+        if (vaultPath) removeExternalFileFromVault(vaultPath, note.path).catch(console.error);
+      } else {
+        deleteNoteFile(note.path).catch(console.error);
+      }
     }
 
     set((s) => {

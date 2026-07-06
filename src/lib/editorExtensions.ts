@@ -382,29 +382,33 @@ class FileEmbedWidget extends WidgetType {
     readonly relativePath: string,
     readonly vaultPath: string,
     readonly onRemove: (relativePath: string) => void,
+    readonly searchRoot?: string,
   ) { super() }
 
   // Obsidian's `![[filename]]` embeds are bare filenames resolved by searching the
   // whole vault, since the file usually lives in an attachments folder, not next to
-  // the note. Try the literal vault-relative path first, then fall back to a
-  // vault-wide search by basename so images from imported Obsidian vaults resolve.
-  private async resolvePath(): Promise<string> {
+  // the note. Try the literal vault-relative path first, then a vault-wide search by
+  // basename, then (for a note opened from outside this vault) the same two steps
+  // rooted at the note's own source vault, so images from an externally-opened
+  // Obsidian note still resolve even though that vault was never imported here.
+  private async resolvePath(): Promise<string | null> {
     if (this.resolvedPath) return this.resolvedPath
     if (!isTauriEnv) return this.fullPath
     try {
       const { exists } = await import('@tauri-apps/plugin-fs')
       if (await exists(this.fullPath)) { this.resolvedPath = this.fullPath; return this.fullPath }
-    } catch { /* fall through to vault-wide search */ }
-    if (this.vaultPath) {
+    } catch { /* fall through to searches below */ }
+
+    const filename = this.relativePath.split('/').pop() || this.relativePath
+    const { findFileInVault } = await import('./vault')
+    for (const root of [this.vaultPath, this.searchRoot]) {
+      if (!root) continue
       try {
-        const { findFileInVault } = await import('./vault')
-        const filename = this.relativePath.split('/').pop() || this.relativePath
-        const found = await findFileInVault(this.vaultPath, filename)
+        const found = await findFileInVault(root, filename)
         if (found) { this.resolvedPath = found; return found }
-      } catch { /* ignore, use literal path below */ }
+      } catch { /* try next root */ }
     }
-    this.resolvedPath = this.fullPath
-    return this.fullPath
+    return null
   }
 
   eq(other: FileEmbedWidget) {
@@ -413,7 +417,8 @@ class FileEmbedWidget extends WidgetType {
       other.displayName === this.displayName &&
       other.sizeBytes === this.sizeBytes &&
       other.relativePath === this.relativePath &&
-      other.vaultPath === this.vaultPath
+      other.vaultPath === this.vaultPath &&
+      other.searchRoot === this.searchRoot
     )
   }
 
@@ -455,8 +460,9 @@ class FileEmbedWidget extends WidgetType {
     placeholder.textContent = 'Loading…'
     outer.appendChild(placeholder)
 
-    const resolveUrl = async (): Promise<string> => {
+    const resolveUrl = async (): Promise<string | null> => {
       const path = await this.resolvePath()
+      if (!path) return null
       if (isTauriEnv) {
         try {
           const { convertFileSrc } = await import('@tauri-apps/api/core')
@@ -467,7 +473,12 @@ class FileEmbedWidget extends WidgetType {
       }
       return `file://${path}`
     }
+    const showNotFound = () => {
+      placeholder.textContent = `Image not found: ${this.displayName}`
+    }
     resolveUrl().then(url => {
+      if (!url) { showNotFound(); return }
+      img.onerror = showNotFound
       img.src = url
       img.onload = () => { placeholder.replaceWith(img) }
     })
@@ -616,6 +627,7 @@ class FileEmbedWidget extends WidgetType {
     // PDFs use a data: URL because Tauri's WKWebView blocks asset:// inside iframes.
     const resolveUrl = async (mimeType?: string): Promise<string> => {
       const path = await this.resolvePath()
+      if (!path) throw new Error(`File not found: ${this.displayName}`)
       if (isTauriEnv) {
         if (mimeType) {
           // Load as bytes → base64 data URL (works in any WKWebView context)
@@ -640,9 +652,10 @@ class FileEmbedWidget extends WidgetType {
 
     const openExternally = () => {
       if (isTauriEnv) {
-        this.resolvePath().then(path =>
+        this.resolvePath().then(path => {
+          if (!path) { console.error(`File not found: ${this.displayName}`); return }
           import('@tauri-apps/plugin-opener').then(({ openPath }) => openPath(path))
-        )
+        })
       }
     }
 
@@ -702,6 +715,9 @@ class FileEmbedWidget extends WidgetType {
             openBtn.addEventListener('mousedown', e => { e.preventDefault(); openExternally() })
             bar.appendChild(openBtn)
             this.previewEl.appendChild(bar)
+          }).catch(() => {
+            if (!this.previewEl) return
+            loader.textContent = `File not found: ${this.displayName}`
           })
 
         } else if (this.type === 'video') {
@@ -716,7 +732,14 @@ class FileEmbedWidget extends WidgetType {
             ext === 'mov'  ? 'video/quicktime' :
             ext === 'avi'  ? 'video/x-msvideo' :
             'video/mp4'
-          resolveUrl(videoMime).then(url => { video.src = url })
+          resolveUrl(videoMime)
+            .then(url => { video.src = url })
+            .catch(() => {
+              const msg = document.createElement('p')
+              msg.textContent = `File not found: ${this.displayName}`
+              msg.style.cssText = 'font-size:13px;color:hsl(var(--muted-foreground));padding:24px;text-align:center;margin:0'
+              video.replaceWith(msg)
+            })
 
         } else {
           // Generic: open externally
@@ -775,6 +798,7 @@ function buildFileEmbedDecorations(
   view: EditorView,
   vaultPath: string,
   onRemove: (relativePath: string) => void = () => {},
+  searchRoot?: string,
 ): DecorationSet {
   const widgets: Range<Decoration>[] = []
   const { doc } = view.state
@@ -799,7 +823,7 @@ function buildFileEmbedDecorations(
 
       widgets.push(
         Decoration.replace({
-          widget: new FileEmbedWidget(fullPath, displayName, sizeBytes, type, relativePath, vaultPath, onRemove),
+          widget: new FileEmbedWidget(fullPath, displayName, sizeBytes, type, relativePath, vaultPath, onRemove, searchRoot),
           inclusive: false,
         }).range(matchFrom, matchTo)
       )
@@ -813,16 +837,17 @@ function buildFileEmbedDecorations(
 export function createFileEmbedPlugin(
   vaultPath: string,
   onRemove: (relativePath: string) => void = () => {},
+  searchRoot?: string,
 ) {
   return ViewPlugin.fromClass(
     class {
       decorations: DecorationSet
       constructor(view: EditorView) {
-        this.decorations = buildFileEmbedDecorations(view, vaultPath, onRemove)
+        this.decorations = buildFileEmbedDecorations(view, vaultPath, onRemove, searchRoot)
       }
       update(update: ViewUpdate) {
         if (update.docChanged || update.viewportChanged) {
-          this.decorations = buildFileEmbedDecorations(update.view, vaultPath, onRemove)
+          this.decorations = buildFileEmbedDecorations(update.view, vaultPath, onRemove, searchRoot)
         }
       }
     },

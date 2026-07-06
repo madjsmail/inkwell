@@ -206,6 +206,7 @@ function PreviewFileEmbed({
   displayName,
   sizeBytes,
   vaultPath,
+  searchRoot,
   noteId,
   defaultExpanded = false,
 }: {
@@ -213,6 +214,7 @@ function PreviewFileEmbed({
   displayName: string
   sizeBytes: number
   vaultPath: string | null
+  searchRoot?: string
   noteId?: string
   defaultExpanded?: boolean
 }) {
@@ -222,15 +224,17 @@ function PreviewFileEmbed({
 
   // Obsidian's `![[filename]]` embeds are bare filenames resolved by searching the
   // whole vault, since the file usually lives in an attachments folder, not next to
-  // the note. Try the direct vault-relative path first, then fall back to a vault-wide
-  // search by basename so images from imported Obsidian vaults still resolve.
-  const [fullPath, setFullPath] = useState(directPath)
+  // the note. Try the direct vault-relative path first, then a vault-wide search by
+  // basename, then (for a note opened from outside this vault) the same search
+  // rooted at the note's own source vault, so images from an externally-opened
+  // Obsidian note still resolve.
+  const [fullPath, setFullPath] = useState<string | null>(directPath)
   const [resolving, setResolving] = useState(isTauriEnv)
 
   useEffect(() => {
     let cancelled = false
     setFullPath(directPath)
-    if (!vaultPath || !isTauriEnv) { setResolving(false); return }
+    if (!isTauriEnv) { setResolving(false); return }
     setResolving(true)
     import('@tauri-apps/plugin-fs').then(async ({ exists }) => {
       if (await exists(directPath).catch(() => false)) {
@@ -239,17 +243,24 @@ function PreviewFileEmbed({
       }
       const { findFileInVault } = await import('../../lib/vault')
       const filename = relativePath.split('/').pop() || relativePath
-      const found = await findFileInVault(vaultPath, filename)
-      if (cancelled) return
-      if (found) setFullPath(found)
-      setResolving(false)
+      for (const root of [vaultPath, searchRoot]) {
+        if (!root) continue
+        const found = await findFileInVault(root, filename)
+        if (found) {
+          if (!cancelled) { setFullPath(found); setResolving(false) }
+          return
+        }
+      }
+      if (!cancelled) { setFullPath(null); setResolving(false) }
     }).catch(() => { if (!cancelled) setResolving(false) })
     return () => { cancelled = true }
-  }, [directPath, vaultPath, relativePath])
+  }, [directPath, vaultPath, searchRoot, relativePath])
+
+  const notFound = !resolving && !fullPath
 
   // Preloaded data from ShareDialog (synchronous — ready before mount)
   const preloads = React.useContext(PreloadContext)
-  const preloaded = preloads.get(fullPath) ?? null
+  const preloaded = preloads.get(fullPath ?? '') ?? null
 
   const [expanded, setExpanded] = useState(defaultExpanded)
   // Initialise from preloaded data so there's no async gap during export capture
@@ -277,7 +288,7 @@ function PreviewFileEmbed({
 
   // PDF → base64 (asset:// is blocked inside iframes in WKWebView)
   useEffect(() => {
-    if (!expanded || type !== 'pdf' || pdfUrl || !isTauriEnv || resolving) return
+    if (!expanded || type !== 'pdf' || pdfUrl || !isTauriEnv || resolving || !fullPath) return
     import('@tauri-apps/plugin-fs')
       .then(({ readFile }) => readFile(fullPath))
       .then(bytes => {
@@ -290,7 +301,7 @@ function PreviewFileEmbed({
   // Image → base64 (asset:// URLs are Tauri-only; data: URLs work everywhere)
   // Images render directly (no accordion), so load eagerly rather than on expand.
   useEffect(() => {
-    if (type !== 'image' || imgUrl || !isTauriEnv || resolving) return
+    if (type !== 'image' || imgUrl || !isTauriEnv || resolving || !fullPath) return
     const mimeMap: Record<string, string> = {
       png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg',
       gif: 'image/gif', webp: 'image/webp', svg: 'image/svg+xml',
@@ -308,7 +319,7 @@ function PreviewFileEmbed({
 
   // Video → base64 (asset:// is blocked inside <video> in WKWebView)
   useEffect(() => {
-    if (!expanded || type !== 'video' || videoUrl || !isTauriEnv || resolving) return
+    if (!expanded || type !== 'video' || videoUrl || !isTauriEnv || resolving || !fullPath) return
     const mime =
       ext === 'webm' ? 'video/webm' :
       ext === 'mov'  ? 'video/quicktime' :
@@ -324,7 +335,7 @@ function PreviewFileEmbed({
   }, [expanded, fullPath, type, ext, videoUrl, resolving])
 
   const openExternally = () => {
-    if (!isTauriEnv) return
+    if (!isTauriEnv || !fullPath) return
     import('@tauri-apps/plugin-opener')
       .then(({ openPath }) => openPath(fullPath))
       .catch(console.error)
@@ -362,7 +373,9 @@ function PreviewFileEmbed({
       <div className="group/embed relative my-3 not-prose inline-block max-w-full">
         {imgUrl
           ? <img src={imgUrl} alt={displayName} className="max-w-full rounded-lg border border-border/40 block" />
-          : <div className="h-32 w-full min-w-[200px] flex items-center justify-center text-sm text-muted-foreground border border-border/40 rounded-lg">Loading…</div>
+          : <div className="h-32 w-full min-w-[200px] flex items-center justify-center text-sm text-muted-foreground border border-border/40 rounded-lg">
+              {notFound ? `Image not found: ${displayName}` : 'Loading…'}
+            </div>
         }
         {noteId && (
           <button
@@ -424,12 +437,12 @@ function PreviewFileEmbed({
                       </div>
                     : <iframe src={pdfUrl} className="w-full block border-none" style={{ height: 560 }} title={displayName} />
                 )
-              : <div className="flex items-center justify-center h-16 text-sm text-muted-foreground">Loading PDF…</div>
+              : <div className="flex items-center justify-center h-16 text-sm text-muted-foreground">{notFound ? `File not found: ${displayName}` : 'Loading PDF…'}</div>
           )}
           {type === 'video' && (
             videoUrl
               ? <video controls src={videoUrl} className="w-full block bg-black" style={{ maxHeight: 400 }} />
-              : <div className="flex items-center justify-center h-16 text-sm text-muted-foreground">Loading…</div>
+              : <div className="flex items-center justify-center h-16 text-sm text-muted-foreground">{notFound ? `File not found: ${displayName}` : 'Loading…'}</div>
           )}
           {type === 'other' && (
             <div className="flex flex-col items-center gap-3 py-6">
@@ -496,12 +509,13 @@ function ExternalImage({ src, alt }: { src: string; alt: string }) {
 }
 
 /** Renders a local image by reading it via plugin-fs and converting to a data URL. */
-function LocalImage({ absPath, alt, vaultPath }: { absPath: string; alt: string; vaultPath: string | null }) {
+function LocalImage({ absPath, alt, vaultPath, searchRoot }: { absPath: string; alt: string; vaultPath: string | null; searchRoot?: string }) {
   const preloads = React.useContext(PreloadContext)
   // Prefer preloaded data (synchronous, from ShareDialog), then module cache, then empty
   const [dataSrc, setDataSrc] = useState(
     () => preloads.get(absPath) ?? imageCache.get(absPath) ?? ''
   )
+  const [notFound, setNotFound] = useState(false)
 
   // Sync with preload context if it populates after mount
   useEffect(() => {
@@ -517,13 +531,17 @@ function LocalImage({ absPath, alt, vaultPath }: { absPath: string; alt: string;
       .catch(async () => {
         // Fall back to a vault-wide search by filename — Obsidian-style relative
         // paths (e.g. a differently-named/nested attachments folder) commonly
-        // don't line up with the literal path written in the markdown.
+        // don't line up with the literal path written in the markdown. For a note
+        // opened from outside this vault, also search its own source vault.
         const filename = absPath.split('/').pop() ?? ''
-        if (!vaultPath || !filename) throw new Error('cannot resolve fallback path')
+        if (!filename) throw new Error('cannot resolve fallback path')
         const { findFileInVault } = await import('../../lib/vault')
-        const found = await findFileInVault(vaultPath, filename)
-        if (!found) throw new Error('image not found in vault')
-        return loadBytes(found)
+        for (const root of [vaultPath, searchRoot]) {
+          if (!root) continue
+          const found = await findFileInVault(root, filename)
+          if (found) return loadBytes(found)
+        }
+        throw new Error('image not found in vault')
       })
       .then(bytes => {
         const ext = absPath.split('.').pop()?.toLowerCase() ?? 'jpg'
@@ -534,8 +552,16 @@ function LocalImage({ absPath, alt, vaultPath }: { absPath: string; alt: string;
         imageCache.set(absPath, dataUrl)
         setDataSrc(dataUrl)
       })
-      .catch(e => console.error('Failed to load image:', absPath, e))
-  }, [absPath, dataSrc, vaultPath])
+      .catch(e => { console.error('Failed to load image:', absPath, e); setNotFound(true) })
+  }, [absPath, dataSrc, vaultPath, searchRoot])
+
+  if (notFound) {
+    return (
+      <div className="h-32 w-full max-w-full my-4 flex items-center justify-center text-sm text-muted-foreground border border-border/40 rounded-lg">
+        Image not found: {absPath.split('/').pop()}
+      </div>
+    )
+  }
 
   return (
     <img
@@ -593,7 +619,8 @@ export function RichPreview({ content, noteId, searchQuery = '', searchMatchInde
   const containerRef = useRef<HTMLDivElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const pendingScrollRef = useRef<number | null>(null)
-  const { updateNote, vaultPath } = useAppStore()
+  const { updateNote, vaultPath, notes } = useAppStore()
+  const searchRoot = notes.find(n => n.id === noteId)?.searchRoot
 
   // Restore scroll position synchronously before the browser repaints,
   // preventing the visible jump when markdown re-parses after a toggle.
@@ -787,7 +814,7 @@ export function RichPreview({ content, noteId, searchQuery = '', searchMatchInde
       const isExternal = !decoded || /^(https?:|data:|blob:)/.test(decoded)
       if (isExternal) return <ExternalImage src={decoded} alt={alt ?? ''} />
       const absPath = vaultPath ? (decoded.startsWith('/') ? decoded : `${vaultPath}/${decoded}`) : decoded
-      return <LocalImage absPath={absPath} alt={alt ?? ''} vaultPath={vaultPath ?? null} />
+      return <LocalImage absPath={absPath} alt={alt ?? ''} vaultPath={vaultPath ?? null} searchRoot={searchRoot} />
     },
 
     strong: ({ children }: any) => <strong className="font-semibold text-foreground">{children}</strong>,
@@ -807,6 +834,7 @@ export function RichPreview({ content, noteId, searchQuery = '', searchMatchInde
               displayName={seg.displayName}
               sizeBytes={seg.sizeBytes}
               vaultPath={vaultPath ?? null}
+              searchRoot={searchRoot}
               noteId={noteId}
               defaultExpanded={forExport}
             />

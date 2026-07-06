@@ -18,7 +18,17 @@ function countNotesInFolder(folder: Folder): number {
   return count
 }
 
-export function confirmDeleteNote(noteId: string, noteTitle: string) {
+export function confirmDeleteNote(noteId: string, noteTitle: string, external = false) {
+  if (external) {
+    useAppStore.getState().openConfirm({
+      title: 'Remove from library',
+      description: `Remove "${noteTitle}" from inkwell? The file itself won't be touched.`,
+      confirmLabel: 'Remove',
+      destructive: false,
+      onConfirm: () => useAppStore.getState().deleteNotes([noteId]),
+    })
+    return
+  }
   confirmDeleteNotes([{ id: noteId, title: noteTitle }])
 }
 

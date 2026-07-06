@@ -27,6 +27,7 @@ import { MediaPanel } from "../editor/MediaPanel";
 import { EditorViewProvider } from "../editor/EditorViewContext";
 import { cn } from "../../lib/utils";
 import { formatDate } from "../../lib/utils";
+import { comboMatches } from "../../lib/shortcuts";
 
 export function EditorPane() {
   const {
@@ -114,10 +115,12 @@ export function EditorPane() {
     );
   }, [searchMatches.length]);
 
-  // Cmd/Ctrl+F → open search
+  // Find in note — user-remappable, see Settings > Shortcuts
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === "f") {
+      const { shortcuts, recordingShortcut } = useAppStore.getState();
+      if (recordingShortcut) return;
+      if (comboMatches(e, shortcuts.findInNote)) {
         e.preventDefault();
         openSearch();
       }
