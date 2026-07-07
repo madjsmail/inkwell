@@ -16,9 +16,10 @@ import { confirmDeleteNote, confirmDeleteSelectedNotes, confirmDeleteFolderById 
 import { readVaultFS, writeAppData, readAppData, addRecentVault, getLastVaultPath } from '../../lib/vault'
 import type { AppData } from '../../lib/vault'
 import { comboMatches } from '../../lib/shortcuts'
+import { cn, glassBg } from '../../lib/utils'
 
 export function AppShell() {
-  const { activeView, setSearchOpen, vaultPath, openVault, toggleSidebar, sidebarOpen, initPlanner, openExternalNote } = useAppStore()
+  const { activeView, setSearchOpen, vaultPath, openVault, toggleSidebar, sidebarOpen, initPlanner, openExternalNote, bodyGlass, glassOpacity } = useAppStore()
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Restore theme from localStorage on mount
@@ -57,6 +58,7 @@ export function AppShell() {
   // Restore native vibrancy if it was enabled last session
   useEffect(() => {
     const glass = localStorage.getItem('inkwell-sidebar-glass') === 'true'
+      || localStorage.getItem('inkwell-body-glass') === 'true'
     if (!glass) return
     if (typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window) {
       import('@tauri-apps/api/core').then(({ invoke }) => {
@@ -192,7 +194,10 @@ export function AppShell() {
       {activeView === 'planner' && <WeeklyPlannerView />}
 
       {activeView === 'trash' && (
-        <div className="flex-1 flex items-center justify-center bg-panel">
+        <div
+          className={cn("flex-1 flex items-center justify-center", bodyGlass ? "backdrop-blur-2xl" : "bg-panel")}
+          style={bodyGlass ? glassBg('panel', glassOpacity) : undefined}
+        >
           <p className="text-muted-foreground text-sm">Trash is empty</p>
         </div>
       )}

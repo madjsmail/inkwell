@@ -69,6 +69,8 @@ export function SettingsDialog() {
     editorFontSize, editorFontFamily, editorLineHeight,
     setEditorSettings,
     sidebarGlass, setSidebarGlass,
+    bodyGlass, setBodyGlass,
+    glassOpacity, setGlassOpacity,
     canvasEnabled, setCanvasEnabled,
     canvasLinkedVaultPath, setCanvasLinkedVaultPath,
     plannerEnabled, setPlannerEnabled,
@@ -287,25 +289,43 @@ export function SettingsDialog() {
                       <span className="text-[10px] font-medium text-tertiary border border-border/60 rounded px-1.5 py-0.5 leading-none">
                         macOS
                       </span>
-                      {/* Toggle switch */}
-                      <button
-                        role="switch"
-                        aria-checked={sidebarGlass}
-                        onClick={() => setSidebarGlass(!sidebarGlass)}
-                        className={cn(
-                          'relative w-9 h-5 rounded-full transition-colors shrink-0',
-                          sidebarGlass ? 'bg-accent' : 'bg-border',
-                        )}
-                      >
-                        <span
-                          className={cn(
-                            'absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow-sm transition-transform',
-                            sidebarGlass ? 'translate-x-4' : 'translate-x-0',
-                          )}
-                        />
-                      </button>
+                      <ToggleSwitch checked={sidebarGlass} onChange={setSidebarGlass} />
                     </div>
                   </SettingRow>
+
+                  <SettingRow
+                    label="Glass body"
+                    description="Show the desktop through the note list and editor"
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-medium text-tertiary border border-border/60 rounded px-1.5 py-0.5 leading-none">
+                        macOS
+                      </span>
+                      <ToggleSwitch checked={bodyGlass} onChange={setBodyGlass} />
+                    </div>
+                  </SettingRow>
+
+                  {(sidebarGlass || bodyGlass) && (
+                    <SettingRow
+                      label="Glass intensity"
+                      description="How see-through the glass effect is"
+                    >
+                      <div className="flex items-center gap-2 w-40">
+                        <input
+                          type="range"
+                          min={0}
+                          max={100}
+                          step={5}
+                          value={glassOpacity}
+                          onChange={e => setGlassOpacity(Number(e.target.value))}
+                          className="flex-1 accent-accent"
+                        />
+                        <span className="text-[10px] text-tertiary w-8 text-right tabular-nums">
+                          {glassOpacity}%
+                        </span>
+                      </div>
+                    </SettingRow>
+                  )}
                 </>
               )}
 
@@ -390,22 +410,7 @@ export function SettingsDialog() {
                     label="Canvas"
                     description="Freehand drawing and diagramming — add a Draw page to the sidebar"
                   >
-                    <button
-                      role="switch"
-                      aria-checked={canvasEnabled}
-                      onClick={() => setCanvasEnabled(!canvasEnabled)}
-                      className={cn(
-                        'relative w-9 h-5 rounded-full transition-colors shrink-0',
-                        canvasEnabled ? 'bg-accent' : 'bg-border',
-                      )}
-                    >
-                      <span
-                        className={cn(
-                          'absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow-sm transition-transform',
-                          canvasEnabled ? 'translate-x-4' : 'translate-x-0',
-                        )}
-                      />
-                    </button>
+                    <ToggleSwitch checked={canvasEnabled} onChange={setCanvasEnabled} />
                   </SettingRow>
 
                   {canvasEnabled && (
@@ -439,22 +444,7 @@ export function SettingsDialog() {
                     label="Planner"
                     description="Daily task planner with week navigation — add a Planner page to the sidebar"
                   >
-                    <button
-                      role="switch"
-                      aria-checked={plannerEnabled}
-                      onClick={() => setPlannerEnabled(!plannerEnabled)}
-                      className={cn(
-                        'relative w-9 h-5 rounded-full transition-colors shrink-0',
-                        plannerEnabled ? 'bg-accent' : 'bg-border',
-                      )}
-                    >
-                      <span
-                        className={cn(
-                          'absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow-sm transition-transform',
-                          plannerEnabled ? 'translate-x-4' : 'translate-x-0',
-                        )}
-                      />
-                    </button>
+                    <ToggleSwitch checked={plannerEnabled} onChange={setPlannerEnabled} />
                   </SettingRow>
                 </>
               )}
@@ -1117,6 +1107,27 @@ function CustomThemeCard({
 }
 
 // ─── Helper components ────────────────────────────────────────────────────────
+
+function ToggleSwitch({ checked, onChange }: { checked: boolean; onChange: (checked: boolean) => void }) {
+  return (
+    <button
+      role="switch"
+      aria-checked={checked}
+      onClick={() => onChange(!checked)}
+      className={cn(
+        'relative w-9 h-5 rounded-full transition-colors shrink-0',
+        checked ? 'bg-accent' : 'bg-border',
+      )}
+    >
+      <span
+        className={cn(
+          'absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow-sm transition-transform',
+          checked ? 'translate-x-4' : 'translate-x-0',
+        )}
+      />
+    </button>
+  )
+}
 
 function SettingRow({ label, description, children }: {
   label: string

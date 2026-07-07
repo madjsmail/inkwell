@@ -5,6 +5,7 @@ import { defaultKeymap, history, historyKeymap, undo, redo } from '@codemirror/c
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown'
 import { useAppStore } from '../../store/useAppStore'
 import { saveNote } from '../../lib/fs'
+import { cn, glassBg } from '../../lib/utils'
 
 import { markdownHighlighting, slashCommandCompletion, highlightMarkPlugin, tablePlugin, createFileEmbedPlugin } from '../../lib/editorExtensions'
 import { searchHighlightExtension } from '../../lib/searchHighlightExtension'
@@ -21,7 +22,7 @@ export function MarkdownEditor({ noteId, content, onScrollerReady }: MarkdownEdi
   const containerRef = useRef<HTMLDivElement>(null)
   const viewRef = useEditorViewRef()
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const { updateNote, setSaveStatus, theme, vaultPath, editorFontSize, editorFontFamily, editorLineHeight, removeAttachment } = useAppStore()
+  const { updateNote, setSaveStatus, theme, vaultPath, editorFontSize, editorFontFamily, editorLineHeight, removeAttachment, bodyGlass, glassOpacity } = useAppStore()
 
   const editorFontStyles = {
     fontFamily: editorFontFamily,
@@ -36,9 +37,11 @@ export function MarkdownEditor({ noteId, content, onScrollerReady }: MarkdownEdi
   useEffect(() => {
     if (!containerRef.current) return
 
+    const editorBg = bodyGlass ? `hsl(var(--background) / ${glassOpacity / 100})` : 'hsl(var(--background))'
+
     const customTheme = EditorView.theme({
       '&': {
-        backgroundColor: 'hsl(var(--background))',
+        backgroundColor: editorBg,
         height: '100%',
       },
       '.cm-editor': {
@@ -48,7 +51,7 @@ export function MarkdownEditor({ noteId, content, onScrollerReady }: MarkdownEdi
         overflow: 'auto',
         padding: '0',
         height: '100%',
-        backgroundColor: 'hsl(var(--background))',
+        backgroundColor: editorBg,
         ...editorFontStyles,
       },
       '.cm-content': {
@@ -194,7 +197,7 @@ export function MarkdownEditor({ noteId, content, onScrollerReady }: MarkdownEdi
       viewRef.current = null
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
     }
-  }, [noteId, theme, editorFontSize, editorFontFamily, editorLineHeight])
+  }, [noteId, theme, editorFontSize, editorFontFamily, editorLineHeight, bodyGlass, glassOpacity])
 
   useEffect(() => {
     const view = viewRef.current
@@ -210,8 +213,8 @@ export function MarkdownEditor({ noteId, content, onScrollerReady }: MarkdownEdi
   return (
     <div
       ref={containerRef}
-      className="inkwell-editor h-full w-full overflow-hidden bg-background"
-      style={{ minHeight: 0 }}
+      className={cn("inkwell-editor h-full w-full overflow-hidden", bodyGlass ? "backdrop-blur-2xl" : "bg-background")}
+      style={{ minHeight: 0, ...(bodyGlass ? glassBg('background', glassOpacity) : {}) }}
     />
   )
 }

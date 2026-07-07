@@ -2,7 +2,7 @@ import { Star, Trash2 } from 'lucide-react'
 import { useAppStore } from '../../store/useAppStore'
 import { TagChip } from '../shared/TagChip'
 import { formatDate } from '../../lib/utils'
-import { cn } from '../../lib/utils'
+import { cn, glassBg } from '../../lib/utils'
 import { useState } from 'react'
 import { confirmDeleteNote, confirmDeleteNotes } from '../../lib/deleteActions'
 import { handleNoteSelect } from '../../lib/noteSelection'
@@ -15,6 +15,8 @@ export function NoteList() {
     selectedFolderId,
     pinNote,
     moveNotes,
+    bodyGlass,
+    glassOpacity,
   } = useAppStore()
   const [sortBy, setSortBy] = useState<'date' | 'name'>('date')
   const [showPinned, setShowPinned] = useState(false)
@@ -54,7 +56,13 @@ export function NoteList() {
   }
 
   return (
-    <div className="w-[280px] shrink-0 flex flex-col bg-background border-r border-border h-full overflow-hidden">
+    <div
+      className={cn(
+        'w-[280px] shrink-0 flex flex-col border-r border-border h-full overflow-hidden',
+        bodyGlass ? 'backdrop-blur-2xl' : 'bg-background',
+      )}
+      style={bodyGlass ? glassBg('background', glassOpacity) : undefined}
+    >
       <div
         className={cn(
           'h-10 flex items-center justify-between px-3 border-b border-border shrink-0 transition-colors',

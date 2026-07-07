@@ -41,7 +41,7 @@ import { useAppStore } from "../../store/useAppStore";
 import { ThemeToggle } from "../shared/ThemeToggle";
 import { ContextMenu } from "../shared/ContextMenu";
 import type { Folder as FolderType, Note } from "../../types";
-import { cn } from "../../lib/utils";
+import { cn, glassBg } from "../../lib/utils";
 import {
   confirmDeleteFolderItem,
   confirmDeleteNote,
@@ -466,6 +466,7 @@ export function Sidebar() {
     selectedFolderId,
     clearFolderSelection,
     sidebarGlass,
+    glassOpacity,
     canvasEnabled,
     plannerEnabled,
   } = useAppStore();
@@ -826,8 +827,9 @@ export function Sidebar() {
         className={cn(
           "w-[220px] shrink-0 flex flex-col border-r border-border h-full overflow-hidden relative",
           // backdrop-blur + semi-transparent bg = frosted glass against the macOS desktop
-          sidebarGlass ? "backdrop-blur-2xl bg-sidebar/50" : "bg-sidebar",
+          sidebarGlass ? "backdrop-blur-2xl" : "bg-sidebar",
         )}
+        style={sidebarGlass ? glassBg('sidebar', glassOpacity) : undefined}
       >
         <div className="h-8 shrink-0" data-tauri-drag-region />
 

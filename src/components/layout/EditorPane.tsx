@@ -25,7 +25,7 @@ import { NoteSearchBar } from "../editor/NoteSearchBar";
 import { LinksPanel } from "../editor/LinksPanel";
 import { MediaPanel } from "../editor/MediaPanel";
 import { EditorViewProvider } from "../editor/EditorViewContext";
-import { cn } from "../../lib/utils";
+import { cn, glassBg } from "../../lib/utils";
 import { formatDate } from "../../lib/utils";
 import { comboMatches } from "../../lib/shortcuts";
 
@@ -47,6 +47,8 @@ export function EditorPane() {
     sidebarOpen,
     toggleSidebar,
     vaultPath,
+    bodyGlass,
+    glassOpacity,
   } = useAppStore();
 
   const primaryNoteId = lastSelectedNoteId ?? selectedNoteIds[0] ?? null;
@@ -171,7 +173,10 @@ export function EditorPane() {
 
   if (!note) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center bg-background gap-4">
+      <div
+        className={cn("flex-1 flex flex-col items-center justify-center gap-4", bodyGlass ? "backdrop-blur-2xl" : "bg-background")}
+        style={bodyGlass ? glassBg('background', glassOpacity) : undefined}
+      >
         <PenLine className="w-10 h-10 text-tertiary" />
         <div className="text-center">
           <p className="text-sm font-medium text-muted-foreground">Nothing open</p>
@@ -201,7 +206,10 @@ export function EditorPane() {
   };
 
   return (
-    <div className="flex-1 flex bg-background overflow-hidden min-w-0">
+    <div
+      className={cn("flex-1 flex overflow-hidden min-w-0", bodyGlass ? "backdrop-blur-2xl" : "bg-background")}
+      style={bodyGlass ? glassBg('background', glassOpacity) : undefined}
+    >
       <div className="flex-1 flex flex-col overflow-hidden min-w-0">
         {/* Top bar */}
         <div className="h-10 shrink-0 border-b border-border flex items-center px-4 gap-4" data-tauri-drag-region>

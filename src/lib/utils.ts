@@ -74,3 +74,12 @@ export function setContentTitle(content: string, title: string): string {
   }
   return `# ${trimmed}\n\n${content}`
 }
+
+// Glass/vibrancy backgrounds need a continuous, user-adjustable opacity — Tailwind's
+// bg-x/NN opacity utilities are generated at build time from static class strings, so
+// they can't represent an arbitrary runtime slider value. Use an inline style instead;
+// the CSS variables (--sidebar, --background, --panel, ...) are always raw "h s l"
+// triplets (see globals.css), so wrapping in hsl(var(--x) / alpha) is always valid.
+export function glassBg(cssVar: string, opacityPercent: number): { backgroundColor: string } {
+  return { backgroundColor: `hsl(var(--${cssVar}) / ${opacityPercent / 100})` }
+}

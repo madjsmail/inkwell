@@ -44,6 +44,17 @@ import { loadShortcuts, saveShortcuts, DEFAULT_SHORTCUTS } from "../lib/shortcut
 // The MCP server reads this file on every tool call so it always operates
 // on the vault currently open in the app, regardless of the static env var.
 
+// Native NSVisualEffectView vibrancy applies to the whole window regardless of
+// which region's CSS actually reveals it — so it only needs to be on if *either*
+// the sidebar or the body glass toggle is on, off only when both are off.
+function syncVibrancy(enabled: boolean): void {
+  if (typeof window !== "undefined" && "__TAURI_INTERNALS__" in window) {
+    import("@tauri-apps/api/core").then(({ invoke }) => {
+      invoke("set_vibrancy", { enabled }).catch(console.error);
+    });
+  }
+}
+
 async function writeActiveVaultFile(vaultPath: string): Promise<void> {
   try {
     const { writeTextFile, mkdir } = await import("@tauri-apps/plugin-fs");
@@ -168,6 +179,10 @@ interface AppState {
   ) => void;
   sidebarGlass: boolean;
   setSidebarGlass: (enabled: boolean) => void;
+  bodyGlass: boolean;
+  setBodyGlass: (enabled: boolean) => void;
+  glassOpacity: number;
+  setGlassOpacity: (percent: number) => void;
   shortcuts: Record<string, string>;
   setShortcut: (id: string, combo: string) => void;
   resetShortcuts: () => void;
@@ -529,6 +544,8 @@ export const useAppStore = create<AppState>((set, get) => ({
     "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
   editorLineHeight: localStorage.getItem("inkwell-editor-lineHeight") ?? "1.7",
   sidebarGlass: localStorage.getItem("inkwell-sidebar-glass") === "true",
+  bodyGlass: localStorage.getItem("inkwell-body-glass") === "true",
+  glassOpacity: Number(localStorage.getItem("inkwell-glass-opacity")) || 50,
   shortcuts: loadShortcuts(),
   recordingShortcut: false,
   canvasEnabled: localStorage.getItem("inkwell-canvas-enabled") === "true",
@@ -783,12 +800,19 @@ export const useAppStore = create<AppState>((set, get) => ({
   setSidebarGlass: (enabled) => {
     localStorage.setItem("inkwell-sidebar-glass", String(enabled));
     set({ sidebarGlass: enabled });
-    // Drive native NSVisualEffectView in Tauri
-    if (typeof window !== "undefined" && "__TAURI_INTERNALS__" in window) {
-      import("@tauri-apps/api/core").then(({ invoke }) => {
-        invoke("set_vibrancy", { enabled }).catch(console.error);
-      });
-    }
+    syncVibrancy(enabled || get().bodyGlass);
+  },
+
+  setBodyGlass: (enabled) => {
+    localStorage.setItem("inkwell-body-glass", String(enabled));
+    set({ bodyGlass: enabled });
+    syncVibrancy(enabled || get().sidebarGlass);
+  },
+
+  setGlassOpacity: (percent) => {
+    const clamped = Math.min(100, Math.max(0, percent));
+    localStorage.setItem("inkwell-glass-opacity", String(clamped));
+    set({ glassOpacity: clamped });
   },
 
   setShortcut: (id, combo) => {
