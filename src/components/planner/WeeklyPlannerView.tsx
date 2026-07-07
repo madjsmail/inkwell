@@ -3,7 +3,6 @@ import { ChevronLeft, ChevronRight, Check, X, Tag } from 'lucide-react'
 import { useAppStore } from '../../store/useAppStore'
 import type { PlannerDay, PlannerTask } from '../../types'
 import { cn } from '../../lib/utils'
-import { NoteRefAutocomplete, NoteRefDisplay } from '../../lib/noteReferences'
 
 // ── Date helpers ──────────────────────────────────────────────────────────────
 
@@ -77,7 +76,7 @@ function TaskCard({ task, onToggle, onRemove }: TaskCardProps) {
           task.done ? 'line-through text-tertiary' : 'text-foreground',
         )}
       >
-        <NoteRefDisplay text={task.text} />
+        {task.text}
       </span>
 
       {/* Delete */}
@@ -429,24 +428,17 @@ export function WeeklyPlannerView() {
           </button>
 
           {/* Task input */}
-          <div className="flex-1 relative">
-            <input
-              ref={inputRef}
-              value={draft}
-              onChange={e => setDraft(e.target.value)}
-              onKeyDown={e => {
-                if (e.key === 'Enter') { e.preventDefault(); addTask() }
-                if (e.key === 'Escape') { setDraft(''); setLabelDraft(''); setShowLabel(false) }
-              }}
-              placeholder="Write a task…"
-              className="w-full bg-transparent text-sm text-foreground placeholder:text-tertiary outline-none"
-            />
-            <NoteRefAutocomplete
-              inputValue={draft}
-              inputRef={inputRef}
-              onInsert={setDraft}
-            />
-          </div>
+          <input
+            ref={inputRef}
+            value={draft}
+            onChange={e => setDraft(e.target.value)}
+            onKeyDown={e => {
+              if (e.key === 'Enter') { e.preventDefault(); addTask() }
+              if (e.key === 'Escape') { setDraft(''); setLabelDraft(''); setShowLabel(false) }
+            }}
+            placeholder="Write a task…"
+            className="flex-1 bg-transparent text-sm text-foreground placeholder:text-tertiary outline-none"
+          />
 
           {/* Add button */}
           <button
