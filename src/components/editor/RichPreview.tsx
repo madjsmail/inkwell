@@ -7,6 +7,7 @@ import rehypeRaw from 'rehype-raw'
 import { remarkHighlight } from '../../lib/remarkHighlight'
 import { useAppStore } from '../../store/useAppStore'
 import { formatFileSize } from '../../lib/attachments'
+import { navigateToNote } from '../../lib/noteReferences'
 // No external hljs stylesheet — token colors come from CSS variables in globals.css
 
 // ─── Embed helpers ────────────────────────────────────────────────────────────
@@ -805,7 +806,20 @@ export function RichPreview({ content, noteId, searchQuery = '', searchMatchInde
       )
     },
 
-    a:  ({ children, href }: any) => <a href={href} className="text-accent underline underline-offset-2 hover:opacity-80">{children}</a>,
+    a:  ({ children, href }: any) => {
+      const noteMatch = typeof href === 'string' ? href.match(/^note:\/\/([a-zA-Z0-9-]+)$/) : null
+      if (noteMatch) {
+        return (
+          <button
+            onClick={() => navigateToNote(noteMatch[1])}
+            className="text-accent underline underline-offset-2 hover:opacity-80 cursor-pointer inline"
+          >
+            {children}
+          </button>
+        )
+      }
+      return <a href={href} className="text-accent underline underline-offset-2 hover:opacity-80">{children}</a>
+    },
     hr: () => <hr className="border-border my-6" />,
 
     img: ({ src, alt }: any) => {
@@ -846,6 +860,11 @@ export function RichPreview({ content, noteId, searchQuery = '', searchMatchInde
               remarkPlugins={[remarkGfm, remarkHighlight]}
               rehypePlugins={[rehypeHighlight, rehypeRaw]}
               components={mdComponents}
+              urlTransform={(url) => {
+                if (url.startsWith('note://')) return url
+                if (/^(https?:|mailto:|#|\/)/.test(url)) return url
+                return undefined
+              }}
             >
               {preprocessMarkdown(seg.text)}
             </ReactMarkdown>
