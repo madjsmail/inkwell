@@ -69,7 +69,6 @@
   "67": "PostCSS Config",
   "68": "Vite Env Types",
   "69": "Vite Config",
-  "70": "useAppStore.ts",
   "71": "local",
   "72": "index.html Vite Entry Point",
   "73": "ShellScopeEntryAllowedArg",
@@ -104,8 +103,5 @@
   "102": "welcome.md (Onboarding Note)",
   "103": "Keyboard Shortcuts (⌘K, ⌘B, ⌘F)",
   "104": "Slash Quick-Formatting Commands",
-  "105": "Edit/Split/Preview View Modes",
-  "106": "shortcuts.ts",
-  "107": "utils.ts",
-  "108": "description"
+  "105": "Edit/Split/Preview View Modes"
 }

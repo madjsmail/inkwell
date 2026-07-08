@@ -44,6 +44,17 @@ const CANVAS_NOTES_FILE = 'canvas-notes.md'
 const RECENT_KEY = 'inkwell-recent-vaults'
 const LAST_VAULT_KEY = 'inkwell-last-vault'
 
+// Directories to skip entirely when scanning a vault — common dependency/build/VCS
+// folders that show up when a vault is nested inside a code project. These aren't
+// notes and recursing into them (node_modules especially) is also a real perf cost.
+const IGNORED_DIR_NAMES = new Set([
+  'node_modules', '.git', '.svn', '.hg',
+  'dist', 'build', 'out', 'target', 'bin', 'obj',
+  'venv', '.venv', 'env', '__pycache__', '.pytest_cache', '.mypy_cache',
+  '.next', '.nuxt', '.turbo', '.parcel-cache', '.cache', 'coverage',
+  '.vscode', '.idea', '.vs', 'vendor', 'Pods', '.gradle', '.dart_tool', 'DerivedData',
+])
+
 // ── Public types ──────────────────────────────────────────────────────────────
 
 export interface AppData {
@@ -185,7 +196,7 @@ export async function findFileInVault(vaultPath: string, filename: string): Prom
 
     for (const entry of entries) {
       if (entry.isDirectory) {
-        if (!entry.name.startsWith('.')) queue.push(entry.path)
+        if (!entry.name.startsWith('.') && !IGNORED_DIR_NAMES.has(entry.name)) queue.push(entry.path)
       } else if (entry.name.toLowerCase() === target) {
         found = entry.path
         break
@@ -214,7 +225,7 @@ async function readDirectory(
   const folderNotes: Note[] = []
   const allNotes: Note[] = []
 
-  const dirs  = entries.filter(e => e.isDirectory && !e.name.startsWith('.'))
+  const dirs  = entries.filter(e => e.isDirectory && !e.name.startsWith('.') && !IGNORED_DIR_NAMES.has(e.name))
   const files = entries.filter(e => !e.isDirectory && e.name.endsWith('.md'))
 
   for (const dir of dirs) {
@@ -289,7 +300,7 @@ export async function readVaultFS(vaultPath: string): Promise<VaultData | null> 
   const rootFolders: Folder[] = []
   const allNotes: Note[] = []
 
-  const dirs  = entries.filter(e => e.isDirectory && !e.name.startsWith('.'))
+  const dirs  = entries.filter(e => e.isDirectory && !e.name.startsWith('.') && !IGNORED_DIR_NAMES.has(e.name))
   const files = entries.filter(e => !e.isDirectory && e.name.endsWith('.md'))
 
   for (const file of files) {
