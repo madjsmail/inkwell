@@ -124,7 +124,14 @@ function noteMentionCompletion(context: CompletionContext): CompletionResult | n
     options: filtered.map(note => ({
       label: `@${note.title}`,
       detail: note.folder ?? undefined,
-      apply: `[@${note.title}](note://${note.id})`,
+      apply: (view, _completion, from, to) => {
+        view.dispatch({ changes: { from, to, insert: `[@${note.title}](note://${note.id})` } })
+        const { selectedNoteIds, addNoteLink } = useAppStore.getState()
+        const currentId = selectedNoteIds[0]
+        if (currentId && currentId !== note.id) {
+          addNoteLink(currentId, { type: 'note', id: note.id })
+        }
+      },
     })),
   }
 }
