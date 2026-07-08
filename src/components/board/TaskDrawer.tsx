@@ -5,6 +5,7 @@ import { TagChip } from '../shared/TagChip'
 import { formatDate } from '../../lib/utils'
 import { cn } from '../../lib/utils'
 import { DatePicker } from '../ui/DatePicker'
+import { NoteRefAutocomplete, NoteRefDisplay } from '../../lib/noteReferences'
 import type { Task } from '../../types'
 
 // ─── Old task drawer constants ─────────────────────────────────────────────────
@@ -98,6 +99,7 @@ function BoardTaskDrawer() {
   const tagInputRef = useRef<HTMLInputElement>(null)
   const titleInputRef = useRef<HTMLInputElement>(null)
   const commentInputRef = useRef<HTMLTextAreaElement>(null)
+  const descInputRef = useRef<HTMLTextAreaElement>(null)
 
   useEffect(() => {
     if (addingSubtask) subtaskInputRef.current?.focus()
@@ -268,10 +270,10 @@ function BoardTaskDrawer() {
                 <span className={cn(
                   'w-2 h-2 rounded-full shrink-0',
                   column.color === 'blue' ? 'bg-blue-400' :
-                  column.color === 'amber' ? 'bg-amber-400' :
-                  column.color === 'green' ? 'bg-green-400' :
-                  column.color === 'red' ? 'bg-red-400' :
-                  column.color === 'purple' ? 'bg-purple-400' : 'bg-muted-foreground'
+                    column.color === 'amber' ? 'bg-amber-400' :
+                      column.color === 'green' ? 'bg-green-400' :
+                        column.color === 'red' ? 'bg-red-400' :
+                          column.color === 'purple' ? 'bg-purple-400' : 'bg-muted-foreground'
                 )} />
                 {column.name}
                 <ChevronDown className="w-3 h-3 text-tertiary" />
@@ -394,19 +396,27 @@ function BoardTaskDrawer() {
           <div>
             <SectionHeader>Description</SectionHeader>
             {editingDesc ? (
-              <textarea
-                autoFocus
-                value={descDraft}
-                onChange={e => setDescDraft(e.target.value)}
-                onBlur={handleDescSave}
-                onKeyDown={e => {
-                  if (e.key === 'Escape') handleDescSave()
-                  if (e.key === 'Enter' && e.metaKey) handleDescSave()
-                }}
-                placeholder="Add a description…"
-                rows={4}
-                className="w-full text-sm bg-surface border border-accent/40 rounded-md px-3 py-2 text-foreground placeholder:text-muted-foreground outline-none resize-none leading-relaxed"
-              />
+              <div className="relative">
+                <textarea
+                  ref={descInputRef}
+                  autoFocus
+                  value={descDraft}
+                  onChange={e => setDescDraft(e.target.value)}
+                  onBlur={handleDescSave}
+                  onKeyDown={e => {
+                    if (e.key === 'Escape') handleDescSave()
+                    if (e.key === 'Enter' && e.metaKey) handleDescSave()
+                  }}
+                  placeholder="Add a description…"
+                  rows={4}
+                  className="w-full text-sm bg-surface border border-accent/40 rounded-md px-3 py-2 text-foreground placeholder:text-muted-foreground outline-none resize-none leading-relaxed"
+                />
+                <NoteRefAutocomplete
+                  inputValue={descDraft}
+                  inputRef={descInputRef}
+                  onInsert={setDescDraft}
+                />
+              </div>
             ) : (
               <div
                 onClick={() => { setDescDraft(task.description); setEditingDesc(true) }}
@@ -416,7 +426,7 @@ function BoardTaskDrawer() {
                   task.description ? 'text-foreground whitespace-pre-wrap' : 'text-tertiary italic',
                 )}
               >
-                {task.description || 'Add a description…'}
+                {task.description ? <NoteRefDisplay text={task.description} /> : 'Add a description…'}
               </div>
             )}
           </div>
@@ -577,6 +587,7 @@ function BoardTaskDrawer() {
                           </button>
                         </div>
                       </div>
+
                       {editingCommentId === comment.id ? (
                         <div className="space-y-1.5">
                           <textarea
@@ -598,6 +609,7 @@ function BoardTaskDrawer() {
                       ) : (
                         <p className="text-sm text-foreground leading-relaxed">{comment.content}</p>
                       )}
+                      <p className="text-sm text-foreground leading-relaxed"><NoteRefDisplay text={comment.content} /></p>
                     </div>
                   </div>
                 ))}
@@ -609,7 +621,7 @@ function BoardTaskDrawer() {
               <div className="w-7 h-7 rounded-full bg-accent/20 text-accent text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5">
                 Y
               </div>
-              <div className="flex-1">
+              <div className="flex-1 relative">
                 <textarea
                   ref={commentInputRef}
                   value={commentDraft}
@@ -620,6 +632,11 @@ function BoardTaskDrawer() {
                   placeholder="Leave a comment…"
                   rows={2}
                   className="w-full text-sm bg-surface border border-border rounded-md px-3 py-2 text-foreground placeholder:text-muted-foreground outline-none focus:border-accent/50 transition-colors resize-none"
+                />
+                <NoteRefAutocomplete
+                  inputValue={commentDraft}
+                  inputRef={commentInputRef}
+                  onInsert={setCommentDraft}
                 />
                 {commentDraft.trim() && (
                   <button
@@ -786,7 +803,7 @@ function OldTaskDrawer() {
                         <span className="text-xs font-semibold text-foreground">{comment.author}</span>
                         <span className="text-[10px] text-tertiary">{formatDate(comment.createdAt)}</span>
                       </div>
-                      <p className="text-sm text-foreground leading-relaxed">{comment.content}</p>
+                      <p className="text-sm text-foreground leading-relaxed"><NoteRefDisplay text={comment.content} /></p>
                     </div>
                   </div>
                 ))}

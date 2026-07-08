@@ -5,6 +5,7 @@ import type { CompletionContext, CompletionResult } from '@codemirror/autocomple
 import { ViewPlugin, Decoration, WidgetType, EditorView } from '@codemirror/view'
 import type { DecorationSet, ViewUpdate } from '@codemirror/view'
 import type { Range } from '@codemirror/state'
+import { useAppStore } from '../store/useAppStore'
 
 // ─── Syntax Highlight Style ──────────────────────────────────────────────────
 
@@ -96,8 +97,47 @@ function slashCompletion(context: CompletionContext): CompletionResult | null {
   }
 }
 
+// ─── @ Note Mention Autocomplete ───────────────────────────────────────────────
+
+function noteMentionCompletion(context: CompletionContext): CompletionResult | null {
+  const line = context.state.doc.lineAt(context.pos)
+  const before = context.state.sliceDoc(line.from, context.pos)
+
+  const match = before.match(/(^|\s)(@(\w*))$/)
+  if (!match) return null
+
+  const prefixLen = match[1].length
+  const atIndex = match.index! + prefixLen
+  const query = match[3] || ''
+
+  const { notes } = useAppStore.getState()
+  const lower = query.toLowerCase()
+  const filtered = notes
+    .filter(n => !query || n.title.toLowerCase().includes(lower))
+    .slice(0, 20)
+
+  if (filtered.length === 0) return null
+
+  return {
+    from: line.from + atIndex,
+    validFor: /^@\w*$/,
+    options: filtered.map(note => ({
+      label: `@${note.title}`,
+      detail: note.folder ?? undefined,
+      apply: (view, _completion, from, to) => {
+        view.dispatch({ changes: { from, to, insert: `[@${note.title}](note://${note.id})` } })
+        const { selectedNoteIds, addNoteLink } = useAppStore.getState()
+        const currentId = selectedNoteIds[0]
+        if (currentId && currentId !== note.id) {
+          addNoteLink(currentId, { type: 'note', id: note.id })
+        }
+      },
+    })),
+  }
+}
+
 export const slashCommandCompletion = autocompletion({
-  override: [slashCompletion],
+  override: [slashCompletion, noteMentionCompletion],
   activateOnTyping: true,
   closeOnBlur: true,
 })

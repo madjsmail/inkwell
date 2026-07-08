@@ -1,7 +1,7 @@
 {
   ".claude/settings.local.json": {
-    "mtime": 1783419838.7075658,
-    "ast_hash": "d130e15f0a45aa66d8ca6a2fc34b365b",
+    "mtime": 1783190299.7029765,
+    "ast_hash": "be2c190a406e3e8de193bfa1d74555f7",
     "semantic_hash": ""
   },
   ".vscode/extensions.json": {
@@ -10,8 +10,8 @@
     "semantic_hash": "a4038619f5414c01f04abbbdd4730820"
   },
   "package.json": {
-    "mtime": 1783419838.7078362,
-    "ast_hash": "9db45a2f8e32f15d7eac57519ce39a5f",
+    "mtime": 1783190313.4799232,
+    "ast_hash": "aedab80c7947024940d02a66aa3df5e6",
     "semantic_hash": ""
   },
   "postcss.config.js": {
@@ -75,8 +75,8 @@
     "semantic_hash": "e8af9fdce60f99420547f58d511820e3"
   },
   "src-tauri/tauri.conf.json": {
-    "mtime": 1783419838.709403,
-    "ast_hash": "8679049408d48c750940d53efe5b22c4",
+    "mtime": 1783190397.030072,
+    "ast_hash": "0e4b6bd621fb8b82bf7a2c03d414cc18",
     "semantic_hash": ""
   },
   "src/App.tsx": {
@@ -165,8 +165,8 @@
     "semantic_hash": "3395185c59d4b925e2b7d609379130d3"
   },
   "src/components/editor/MarkdownEditor.tsx": {
-    "mtime": 1783419838.7097487,
-    "ast_hash": "22ac5e34c9df109cccfced60b839a480",
+    "mtime": 1783190299.7155616,
+    "ast_hash": "3682830c2fecc8b0b74e37e667c9b4cf",
     "semantic_hash": ""
   },
   "src/components/editor/MediaPanel.tsx": {
@@ -180,9 +180,9 @@
     "semantic_hash": "5ab73d29a689cbd3d076e44ae73fccc7"
   },
   "src/components/editor/RichPreview.tsx": {
-    "mtime": 1783419838.7100785,
-    "ast_hash": "71fa4d91af408accad37b52cd967035d",
-    "semantic_hash": ""
+    "mtime": 1783190299.7159178,
+    "ast_hash": "4f8b08f089fb0abbbb0d7fbebe2adad8",
+    "semantic_hash": "4f8b08f089fb0abbbb0d7fbebe2adad8"
   },
   "src/components/editor/ShareDialog.tsx": {
     "mtime": 1782980448.8119211,
@@ -190,29 +190,29 @@
     "semantic_hash": "0704242e17527863380c4fa36a627441"
   },
   "src/components/editor/SplitView.tsx": {
-    "mtime": 1783419838.7104428,
-    "ast_hash": "c900732b478ed8a1c63dd59fe4130d79",
-    "semantic_hash": ""
+    "mtime": 1782980448.8119674,
+    "ast_hash": "c285a7cacd3fa922cd4fc8c8f0899d3b",
+    "semantic_hash": "c285a7cacd3fa922cd4fc8c8f0899d3b"
   },
   "src/components/layout/AppShell.tsx": {
-    "mtime": 1783419838.7108464,
-    "ast_hash": "3c26b56199dddb7ca5497af0be9621de",
+    "mtime": 1783190299.686214,
+    "ast_hash": "f71f0f294a851472fcce02f2e34b7ab5",
     "semantic_hash": ""
   },
   "src/components/layout/EditorPane.tsx": {
-    "mtime": 1783419838.7111301,
-    "ast_hash": "6d4ea00ee17565ed9d3948bb07b28a23",
-    "semantic_hash": ""
+    "mtime": 1782980448.8121748,
+    "ast_hash": "6cfc63c02eb7beefadc0ccc3d0f9392d",
+    "semantic_hash": "6cfc63c02eb7beefadc0ccc3d0f9392d"
   },
   "src/components/layout/NoteList.tsx": {
-    "mtime": 1783419838.711447,
-    "ast_hash": "be4601169376a00ee1e64dc8c87bc078",
-    "semantic_hash": ""
+    "mtime": 1782980448.812258,
+    "ast_hash": "e65ac8416c342c68fd5d8985e00ec624",
+    "semantic_hash": "e65ac8416c342c68fd5d8985e00ec624"
   },
   "src/components/layout/Sidebar.tsx": {
-    "mtime": 1783419838.7117195,
-    "ast_hash": "284863a40d9b9ca130b6d8e0f44ff033",
-    "semantic_hash": ""
+    "mtime": 1782980448.81236,
+    "ast_hash": "24f338ef1a9e85a369ca52a24097af0d",
+    "semantic_hash": "24f338ef1a9e85a369ca52a24097af0d"
   },
   "src/components/planner/WeeklyPlannerView.tsx": {
     "mtime": 1782980448.8124723,
@@ -230,8 +230,8 @@
     "semantic_hash": ""
   },
   "src/components/settings/SettingsDialog.tsx": {
-    "mtime": 1783419838.711953,
-    "ast_hash": "51a89db6a1b0bf297cd38090a21e515f",
+    "mtime": 1783190299.71635,
+    "ast_hash": "489f993a7b14dfb16cac0205898d97df",
     "semantic_hash": ""
   },
   "src/components/settings/ThemeEditor.tsx": {
@@ -300,14 +300,14 @@
     "semantic_hash": "1fb56d8339400dee147ada4b14edf4fc"
   },
   "src/lib/deleteActions.ts": {
-    "mtime": 1783419838.712125,
-    "ast_hash": "6f63105b3cb59507e8853f99455b7ef6",
-    "semantic_hash": ""
+    "mtime": 1782980448.8136716,
+    "ast_hash": "fc293388d5f91fa3a84dc9fdab78a121",
+    "semantic_hash": "fc293388d5f91fa3a84dc9fdab78a121"
   },
   "src/lib/editorExtensions.ts": {
-    "mtime": 1783419838.712291,
-    "ast_hash": "09cf55c21c327f392278d7c330a4055c",
-    "semantic_hash": ""
+    "mtime": 1783190299.716895,
+    "ast_hash": "87115750ae22571c9f6b35adeffc02df",
+    "semantic_hash": "87115750ae22571c9f6b35adeffc02df"
   },
   "src/lib/editorTypography.ts": {
     "mtime": 1782980448.8138278,
@@ -360,13 +360,13 @@
     "semantic_hash": "e7baad8f905c2003890cb20f9ac78542"
   },
   "src/lib/utils.ts": {
-    "mtime": 1783419838.712533,
-    "ast_hash": "41a5bd3b5daa05ce439d695f1ea55cb9",
-    "semantic_hash": ""
+    "mtime": 1782980448.8144567,
+    "ast_hash": "9d308826357afbbce69212d6438054c8",
+    "semantic_hash": "9d308826357afbbce69212d6438054c8"
   },
   "src/lib/vault.ts": {
-    "mtime": 1783421666.9723582,
-    "ast_hash": "aae20a9f1517cfd3b72632ccce605fb0",
+    "mtime": 1783190299.7172184,
+    "ast_hash": "6ac9d99aa8cae6d8841856e048a5457b",
     "semantic_hash": ""
   },
   "src/main.tsx": {
@@ -375,14 +375,14 @@
     "semantic_hash": "912ed2887ab8f9be43f625930982407a"
   },
   "src/store/useAppStore.ts": {
-    "mtime": 1783419838.7129512,
-    "ast_hash": "bc48dffeb6c7e31aade17084709e1506",
+    "mtime": 1783190299.7174191,
+    "ast_hash": "9c4411d882841062022d7c969157f17f",
     "semantic_hash": ""
   },
   "src/types/index.ts": {
-    "mtime": 1783419838.7131126,
-    "ast_hash": "a479fc449ce5219c33dea5cf06cb80f8",
-    "semantic_hash": ""
+    "mtime": 1782980448.815051,
+    "ast_hash": "ed1890f254230ce2efea51a4c2fbd78a",
+    "semantic_hash": "ed1890f254230ce2efea51a4c2fbd78a"
   },
   "src/vite-env.d.ts": {
     "mtime": 1782980448.8151143,
@@ -713,15 +713,5 @@
     "mtime": 1782980448.8097458,
     "ast_hash": "f0402b67b6ce880f65666bb49e841696",
     "semantic_hash": "f0402b67b6ce880f65666bb49e841696"
-  },
-  ".claude/launch.json": {
-    "mtime": 1783419838.7074282,
-    "ast_hash": "3756647cbe9c29e92511b1256a3c8986",
-    "semantic_hash": ""
-  },
-  "src/lib/shortcuts.ts": {
-    "mtime": 1783419838.712405,
-    "ast_hash": "583c382855865a08cfba4d5e4f487006",
-    "semantic_hash": ""
   }
 }
