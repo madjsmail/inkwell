@@ -19,7 +19,7 @@ import { comboMatches } from '../../lib/shortcuts'
 import { cn, glassBg } from '../../lib/utils'
 
 export function AppShell() {
-  const { activeView, setSearchOpen, vaultPath, openVault, toggleSidebar, sidebarOpen, initPlanner, openExternalNote, bodyGlass, glassOpacity } = useAppStore()
+  const { activeView, setActiveView, setSearchOpen, vaultPath, openVault, toggleSidebar, sidebarOpen, initPlanner, openExternalNote, bodyGlass, glassOpacity, createNote, createFolder, openPrompt } = useAppStore()
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Restore theme from localStorage on mount
@@ -127,11 +127,31 @@ export function AppShell() {
       if (comboMatches(e, shortcuts.openFile)) {
         e.preventDefault()
         openExternalNote()
+        return
+      }
+      if (comboMatches(e, shortcuts.newNote)) {
+        e.preventDefault()
+        setActiveView('notes')
+        // Always at the library root — creating inside a specific folder is done
+        // via that folder's right-click context menu ("New note").
+        createNote(null)
+        return
+      }
+      if (comboMatches(e, shortcuts.newFolder)) {
+        e.preventDefault()
+        setActiveView('notes')
+        const folderId = useAppStore.getState().selectedFolderId
+        openPrompt({
+          title: folderId ? 'New Subfolder' : 'New Folder',
+          placeholder: 'Folder name',
+          confirmLabel: 'Create',
+          onConfirm: (name) => createFolder(name, folderId),
+        })
       }
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [setSearchOpen, toggleSidebar, openExternalNote])
+  }, [setSearchOpen, toggleSidebar, openExternalNote, setActiveView, createNote, createFolder, openPrompt])
 
   // Delete key handler
   useEffect(() => {

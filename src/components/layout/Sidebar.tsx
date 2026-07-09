@@ -760,6 +760,7 @@ export function Sidebar() {
       x: e.clientX,
       y: e.clientY,
       items: [
+        { label: "New note", onClick: () => createNote(folder.id) },
         { label: "Rename", onClick: () => startRename(folder.id) },
         {
           label: "Delete folder",
@@ -806,6 +807,8 @@ export function Sidebar() {
     });
   };
 
+  // Always creates at the library root — creating inside a specific folder is
+  // done via that folder's right-click context menu ("New note").
   const handleNewNote = () => {
     createNote(null);
   };

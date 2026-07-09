@@ -195,8 +195,8 @@
     "semantic_hash": ""
   },
   "src/components/layout/AppShell.tsx": {
-    "mtime": 1783590678.9026594,
-    "ast_hash": "8de7479edf61842ec9759ba541900fdd",
+    "mtime": 1783589548.924676,
+    "ast_hash": "b7c8b75e5a2e098cb92cf349a8914d48",
     "semantic_hash": ""
   },
   "src/components/layout/EditorPane.tsx": {
@@ -210,8 +210,8 @@
     "semantic_hash": ""
   },
   "src/components/layout/Sidebar.tsx": {
-    "mtime": 1783590620.2448676,
-    "ast_hash": "918579cbe299b985ac5b59d8fe7a9669",
+    "mtime": 1783589462.3854074,
+    "ast_hash": "98d572161740ca09ae79d58c1db4f059",
     "semantic_hash": ""
   },
   "src/components/planner/WeeklyPlannerView.tsx": {
@@ -720,8 +720,8 @@
     "semantic_hash": ""
   },
   "src/lib/shortcuts.ts": {
-    "mtime": 1783590693.47262,
-    "ast_hash": "5c174ee31d0d66ba47afdfcc8310fe95",
+    "mtime": 1783589452.6309874,
+    "ast_hash": "6f6f72d7787db1dd330e9a18de022ad6",
     "semantic_hash": ""
   },
   "src/lib/noteReferences.tsx": {

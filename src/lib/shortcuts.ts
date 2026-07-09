@@ -16,6 +16,10 @@ export const SHORTCUT_DEFS: ShortcutDef[] = [
   { id: 'toggleSidebar', label: 'Toggle Sidebar', description: 'Show or hide the sidebar', defaultCombo: 'mod+b' },
   { id: 'openFile', label: 'Open File', description: 'Open a standalone .md file into this vault', defaultCombo: 'mod+o' },
   { id: 'findInNote', label: 'Find in Note', description: 'Search within the current note', defaultCombo: 'mod+f' },
+  // Not "mod+n" — that combo is already claimed globally (even when the app is
+  // unfocused) for the quick-note capture popup, see src-tauri/src/lib.rs.
+  { id: 'newNote', label: 'New Note', description: 'Create a note at the library root', defaultCombo: 'mod+shift+n' },
+  { id: 'newFolder', label: 'New Folder', description: 'Create a folder inside the selected folder', defaultCombo: 'mod+shift+f' },
 ]
 
 export const DEFAULT_SHORTCUTS: Record<string, string> = Object.fromEntries(
