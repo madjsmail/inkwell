@@ -136,8 +136,45 @@ function noteMentionCompletion(context: CompletionContext): CompletionResult | n
   }
 }
 
+
+const bangShortcuts: Record<string, () => string> = {
+  '!today': () => new Date().toISOString().split('T')[0],
+  '!tomorrow': () => { const d = new Date(); d.setDate(d.getDate() + 1); return d.toISOString().split('T')[0] },
+  '!nextweek': () => { const d = new Date(); d.setDate(d.getDate() + 7); return d.toISOString().split('T')[0] },
+  '!nextmonth': () => { const d = new Date(); d.setMonth(d.getMonth() + 1); return d.toISOString().split('T')[0] },
+  '!now': () => new Date().toTimeString().split(' ')[0].substring(0, 5),
+}
+
+function dateTimeCompletion(context: CompletionContext): CompletionResult | null {
+  const line = context.state.doc.lineAt(context.pos)
+  const before = context.state.sliceDoc(line.from, context.pos)
+
+  const match = before.match(/(^|\s)(!\w*)$/)
+  if (!match) return null
+
+  const word = match[2]
+  const prefixLen = match[1].length
+  const from = line.from + match.index! + prefixLen
+  const queries = Object.keys(bangShortcuts).filter(k => k.startsWith(word))
+
+  if (queries.length === 0) return null
+
+  return {
+    from,
+    validFor: /^!\w*$/,
+    options: queries.map(k => ({
+      label: k,
+      detail: bangShortcuts[k](),
+      apply: (view, _completion, _from, _to) => {
+        view.dispatch({ changes: { from, to: context.pos, insert: bangShortcuts[k]() } })
+      },
+    })),
+  }
+}
+
+
 export const slashCommandCompletion = autocompletion({
-  override: [slashCompletion, noteMentionCompletion],
+  override: [slashCompletion, noteMentionCompletion, dateTimeCompletion],
   activateOnTyping: true,
   closeOnBlur: true,
 })
