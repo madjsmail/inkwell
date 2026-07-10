@@ -7,7 +7,7 @@ import { useAppStore } from '../../store/useAppStore'
 import { saveNote } from '../../lib/fs'
 import { cn, glassBg } from '../../lib/utils'
 
-import { markdownHighlighting, slashCommandCompletion, highlightMarkPlugin, tablePlugin, createFileEmbedPlugin } from '../../lib/editorExtensions'
+import { markdownHighlighting, slashCommandCompletion, tryAbbreviationReplace, highlightMarkPlugin, tablePlugin, createFileEmbedPlugin } from '../../lib/editorExtensions'
 import { searchHighlightExtension } from '../../lib/searchHighlightExtension'
 import { useEditorViewRef } from './EditorViewContext'
 import { deleteAttachmentFile } from '../../lib/attachments'
@@ -158,6 +158,12 @@ export function MarkdownEditor({ noteId, content, onScrollerReady }: MarkdownEdi
           beforeinput: (event, view) => {
             if (event.inputType === 'historyUndo') { event.preventDefault(); undo(view); return true }
             if (event.inputType === 'historyRedo') { event.preventDefault(); redo(view); return true }
+            if ((event.inputType === 'insertText' || event.inputType === 'insertFromPaste') && event.data) {
+              if (tryAbbreviationReplace(view, event.data)) {
+                event.preventDefault()
+                return true
+              }
+            }
             return false
           },
         }),
