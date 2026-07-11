@@ -103,34 +103,8 @@ export function MarkdownEditor({ noteId, content, onScrollerReady }: MarkdownEdi
         color: 'hsl(var(--accent) / 0.6)',
         fontWeight: '500',
       },
-      // Autocomplete (slash command) dropdown
-      '.cm-tooltip-autocomplete': {
-        backgroundColor: 'hsl(var(--surface))',
-        border: '1px solid hsl(var(--border))',
-        borderRadius: '8px',
-        boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
-        overflow: 'hidden',
-        padding: '4px',
-      },
-      '.cm-tooltip.cm-tooltip-autocomplete > ul': {
-        fontFamily: editorFontFamily,
-        maxHeight: '280px',
-      },
-      '.cm-tooltip-autocomplete ul li': {
-        padding: '6px 10px',
-        borderRadius: '4px',
-        color: 'hsl(var(--foreground))',
-        fontSize: '13px',
-      },
-      '.cm-tooltip-autocomplete ul li[aria-selected]': {
-        backgroundColor: 'hsl(var(--active))',
-        color: 'hsl(var(--foreground))',
-      },
-      '.cm-completionDetail': {
-        color: 'hsl(var(--muted-foreground))',
-        fontSize: '11px',
-        marginLeft: '8px',
-      },
+      // Autocomplete (slash command / @-mention) popup styling lives in
+      // autocompleteTheme, bundled into slashCommandCompletion below.
     })
 
     // Called by the embed widget's trash button: remove the attachment from the

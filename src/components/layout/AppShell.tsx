@@ -62,7 +62,8 @@ export function AppShell() {
     if (!glass) return
     if (typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window) {
       import('@tauri-apps/api/core').then(({ invoke }) => {
-        invoke('set_vibrancy', { enabled: true }).catch(console.error)
+        const dark = useAppStore.getState().theme === 'dark'
+        invoke('set_vibrancy', { enabled: true, dark }).catch(console.error)
       })
     }
   }, [])

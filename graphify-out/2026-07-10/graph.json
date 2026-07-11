@@ -938,7 +938,7 @@
       "source_location": "L51",
       "_origin": "ast",
       "id": "src_tauri_gen_schemas_desktop_schema_properties_description",
-      "community": 23,
+      "community": 56,
       "norm_label": "description"
     },
     {
@@ -948,7 +948,7 @@
       "source_location": "L52",
       "_origin": "ast",
       "id": "src_tauri_gen_schemas_desktop_schema_description_description",
-      "community": 23,
+      "community": 56,
       "norm_label": "description"
     },
     {
@@ -958,7 +958,7 @@
       "source_location": "L53",
       "_origin": "ast",
       "id": "src_tauri_gen_schemas_desktop_schema_description_default",
-      "community": 23,
+      "community": 56,
       "norm_label": "default"
     },
     {
@@ -968,7 +968,7 @@
       "source_location": "L54",
       "_origin": "ast",
       "id": "src_tauri_gen_schemas_desktop_schema_description_type",
-      "community": 23,
+      "community": 56,
       "norm_label": "type"
     },
     {
@@ -1008,7 +1008,7 @@
       "source_location": "L67",
       "_origin": "ast",
       "id": "src_tauri_gen_schemas_desktop_schema_properties_local",
-      "community": 52,
+      "community": 23,
       "norm_label": "local"
     },
     {
@@ -1018,7 +1018,7 @@
       "source_location": "L68",
       "_origin": "ast",
       "id": "src_tauri_gen_schemas_desktop_schema_local_description",
-      "community": 52,
+      "community": 23,
       "norm_label": "description"
     },
     {
@@ -1028,7 +1028,7 @@
       "source_location": "L69",
       "_origin": "ast",
       "id": "src_tauri_gen_schemas_desktop_schema_local_default",
-      "community": 52,
+      "community": 23,
       "norm_label": "default"
     },
     {
@@ -1038,7 +1038,7 @@
       "source_location": "L70",
       "_origin": "ast",
       "id": "src_tauri_gen_schemas_desktop_schema_local_type",
-      "community": 52,
+      "community": 23,
       "norm_label": "type"
     },
     {
@@ -1358,7 +1358,7 @@
       "source_location": "L2378",
       "_origin": "ast",
       "id": "src_tauri_gen_schemas_desktop_schema_definitions_identifier",
-      "community": 16,
+      "community": 23,
       "norm_label": "identifier"
     },
     {
@@ -1368,7 +1368,7 @@
       "source_location": "L2380",
       "_origin": "ast",
       "id": "src_tauri_gen_schemas_desktop_schema_identifier_oneof",
-      "community": 16,
+      "community": 23,
       "norm_label": "oneof"
     },
     {
@@ -1498,7 +1498,7 @@
       "source_location": "L6508",
       "_origin": "ast",
       "id": "src_tauri_gen_schemas_desktop_schema_definitions_shellscopeentryallowedarg",
-      "community": 56,
+      "community": 16,
       "norm_label": "shellscopeentryallowedarg"
     },
     {
@@ -1508,7 +1508,7 @@
       "source_location": "L6509",
       "_origin": "ast",
       "id": "src_tauri_gen_schemas_desktop_schema_shellscopeentryallowedarg_description",
-      "community": 56,
+      "community": 16,
       "norm_label": "description"
     },
     {
@@ -1518,7 +1518,7 @@
       "source_location": "L6510",
       "_origin": "ast",
       "id": "src_tauri_gen_schemas_desktop_schema_shellscopeentryallowedarg_anyof",
-      "community": 56,
+      "community": 16,
       "norm_label": "anyof"
     },
     {
@@ -2258,7 +2258,7 @@
       "source_location": "L6508",
       "_origin": "ast",
       "id": "src_tauri_gen_schemas_macos_schema_definitions_shellscopeentryallowedarg",
-      "community": 61,
+      "community": 17,
       "norm_label": "shellscopeentryallowedarg"
     },
     {
@@ -2268,7 +2268,7 @@
       "source_location": "L6509",
       "_origin": "ast",
       "id": "src_tauri_gen_schemas_macos_schema_shellscopeentryallowedarg_description",
-      "community": 61,
+      "community": 17,
       "norm_label": "description"
     },
     {
@@ -2278,7 +2278,7 @@
       "source_location": "L6510",
       "_origin": "ast",
       "id": "src_tauri_gen_schemas_macos_schema_shellscopeentryallowedarg_anyof",
-      "community": 61,
+      "community": 17,
       "norm_label": "anyof"
     },
     {
@@ -2288,7 +2288,7 @@
       "source_location": "L6536",
       "_origin": "ast",
       "id": "src_tauri_gen_schemas_macos_schema_definitions_shellscopeentryallowedargs",
-      "community": 17,
+      "community": 61,
       "norm_label": "shellscopeentryallowedargs"
     },
     {
@@ -2298,7 +2298,7 @@
       "source_location": "L6537",
       "_origin": "ast",
       "id": "src_tauri_gen_schemas_macos_schema_shellscopeentryallowedargs_description",
-      "community": 17,
+      "community": 61,
       "norm_label": "description"
     },
     {
@@ -2308,7 +2308,7 @@
       "source_location": "L6538",
       "_origin": "ast",
       "id": "src_tauri_gen_schemas_macos_schema_shellscopeentryallowedargs_anyof",
-      "community": 17,
+      "community": 61,
       "norm_label": "anyof"
     },
     {
@@ -2955,7 +2955,7 @@
       "label": "set_vibrancy()",
       "file_type": "code",
       "source_file": "src-tauri/src/lib.rs",
-      "source_location": "L21",
+      "source_location": "L12",
       "_origin": "ast",
       "id": "src_tauri_src_lib_set_vibrancy",
       "community": 46,
@@ -2975,7 +2975,7 @@
       "label": "show_quick_note_window()",
       "file_type": "code",
       "source_file": "src-tauri/src/lib.rs",
-      "source_location": "L54",
+      "source_location": "L36",
       "_origin": "ast",
       "id": "src_tauri_src_lib_show_quick_note_window",
       "community": 46,
@@ -2995,7 +2995,7 @@
       "label": "show_main_window()",
       "file_type": "code",
       "source_file": "src-tauri/src/lib.rs",
-      "source_location": "L89",
+      "source_location": "L71",
       "_origin": "ast",
       "id": "src_tauri_src_lib_show_main_window",
       "community": 46,
@@ -3005,7 +3005,7 @@
       "label": "run()",
       "file_type": "code",
       "source_file": "src-tauri/src/lib.rs",
-      "source_location": "L98",
+      "source_location": "L80",
       "_origin": "ast",
       "id": "src_tauri_src_lib_run",
       "community": 46,
@@ -14819,7 +14819,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src-tauri/src/lib.rs",
-      "source_location": "L98",
+      "source_location": "L80",
       "weight": 1.0,
       "source": "src_tauri_src_lib",
       "target": "src_tauri_src_lib_run",
@@ -14829,7 +14829,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src-tauri/src/lib.rs",
-      "source_location": "L21",
+      "source_location": "L12",
       "weight": 1.0,
       "source": "src_tauri_src_lib",
       "target": "src_tauri_src_lib_set_vibrancy",
@@ -14839,7 +14839,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src-tauri/src/lib.rs",
-      "source_location": "L89",
+      "source_location": "L71",
       "weight": 1.0,
       "source": "src_tauri_src_lib",
       "target": "src_tauri_src_lib_show_main_window",
@@ -14849,7 +14849,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src-tauri/src/lib.rs",
-      "source_location": "L54",
+      "source_location": "L36",
       "weight": 1.0,
       "source": "src_tauri_src_lib",
       "target": "src_tauri_src_lib_show_quick_note_window",
@@ -14859,7 +14859,7 @@
       "relation": "references",
       "confidence": "EXTRACTED",
       "source_file": "src-tauri/src/lib.rs",
-      "source_location": "L21",
+      "source_location": "L12",
       "weight": 1.0,
       "context": "parameter_type",
       "source": "src_tauri_src_lib_set_vibrancy",
@@ -14871,7 +14871,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "src-tauri/src/lib.rs",
-      "source_location": "L122",
+      "source_location": "L104",
       "weight": 1.0,
       "source": "src_tauri_src_lib_run",
       "target": "src_tauri_src_lib_show_quick_note_window",
@@ -14881,7 +14881,7 @@
       "relation": "references",
       "confidence": "EXTRACTED",
       "source_file": "src-tauri/src/lib.rs",
-      "source_location": "L54",
+      "source_location": "L36",
       "weight": 1.0,
       "context": "parameter_type",
       "source": "src_tauri_src_lib_show_quick_note_window",
@@ -14892,7 +14892,7 @@
       "relation": "references",
       "confidence": "EXTRACTED",
       "source_file": "src-tauri/src/lib.rs",
-      "source_location": "L89",
+      "source_location": "L71",
       "weight": 1.0,
       "context": "parameter_type",
       "source": "src_tauri_src_lib_show_main_window",
@@ -14904,7 +14904,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "src-tauri/src/lib.rs",
-      "source_location": "L169",
+      "source_location": "L151",
       "weight": 1.0,
       "source": "src_tauri_src_lib_run",
       "target": "src_tauri_src_lib_show_main_window",
@@ -21790,7 +21790,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/components/layout/AppShell.tsx",
-      "source_location": "L189",
+      "source_location": "L188",
       "weight": 1.0,
       "source": "src_components_layout_appshell_appshell",
       "target": "src_lib_deleteactions_confirmdeletefolderbyid"
@@ -21801,7 +21801,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/components/layout/AppShell.tsx",
-      "source_location": "L182",
+      "source_location": "L181",
       "weight": 1.0,
       "source": "src_components_layout_appshell_appshell",
       "target": "src_lib_deleteactions_confirmdeletenote"
@@ -21812,7 +21812,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/components/layout/AppShell.tsx",
-      "source_location": "L179",
+      "source_location": "L178",
       "weight": 1.0,
       "source": "src_components_layout_appshell_appshell",
       "target": "src_lib_deleteactions_confirmdeleteselectednotes"
@@ -21823,7 +21823,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/components/layout/AppShell.tsx",
-      "source_location": "L118",
+      "source_location": "L117",
       "weight": 1.0,
       "source": "src_components_layout_appshell_appshell",
       "target": "src_lib_shortcuts_combomatches"
@@ -21900,7 +21900,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/components/layout/AppShell.tsx",
-      "source_location": "L219",
+      "source_location": "L218",
       "weight": 1.0,
       "source": "src_components_layout_appshell_appshell",
       "target": "src_lib_utils_cn"
@@ -21911,7 +21911,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/components/layout/AppShell.tsx",
-      "source_location": "L220",
+      "source_location": "L219",
       "weight": 1.0,
       "source": "src_components_layout_appshell_appshell",
       "target": "src_lib_utils_glassbg"
@@ -21922,7 +21922,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/components/layout/AppShell.tsx",
-      "source_location": "L82",
+      "source_location": "L81",
       "weight": 1.0,
       "source": "src_components_layout_appshell_appshell",
       "target": "src_lib_vault_addrecentvault"
@@ -21933,7 +21933,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/components/layout/AppShell.tsx",
-      "source_location": "L79",
+      "source_location": "L78",
       "weight": 1.0,
       "source": "src_components_layout_appshell_appshell",
       "target": "src_lib_vault_getlastvaultpath"
@@ -21944,7 +21944,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/components/layout/AppShell.tsx",
-      "source_location": "L99",
+      "source_location": "L98",
       "weight": 1.0,
       "source": "src_components_layout_appshell_appshell",
       "target": "src_lib_vault_readappdata"
@@ -21955,7 +21955,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/components/layout/AppShell.tsx",
-      "source_location": "L81",
+      "source_location": "L80",
       "weight": 1.0,
       "source": "src_components_layout_appshell_appshell",
       "target": "src_lib_vault_readvaultfs"
@@ -21966,7 +21966,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/components/layout/AppShell.tsx",
-      "source_location": "L108",
+      "source_location": "L107",
       "weight": 1.0,
       "source": "src_components_layout_appshell_appshell",
       "target": "src_lib_vault_writeappdata"
@@ -31162,5 +31162,5 @@
       "source_file": "public/excalidraw-frame.html"
     }
   ],
-  "built_at_commit": "36f5024d2e433a791b527153f96ad5cbb37c4807"
+  "built_at_commit": "6584e86a1486beccaed751154971320f309d94c1"
 }
