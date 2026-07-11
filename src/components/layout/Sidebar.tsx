@@ -12,6 +12,8 @@ import {
   PenSquare,
   CalendarDays,
   FileInput,
+  ArrowUpCircle,
+  ArrowRight,
 } from "lucide-react";
 import { SettingsDialog } from '../settings/SettingsDialog'
 import {
@@ -194,7 +196,7 @@ function NoteRow({
             defaultValue={note.title}
             className="flex-1 bg-transparent text-foreground text-[13px] outline-none border-b border-accent min-w-0"
             onKeyDown={(e) => {
-              if (e.key === "Enter")  { e.preventDefault(); onCommitRename(note.id, e.currentTarget.value); }
+              if (e.key === "Enter") { e.preventDefault(); onCommitRename(note.id, e.currentTarget.value); }
               if (e.key === "Escape") { e.preventDefault(); onCancelRename(); }
               e.stopPropagation();
             }}
@@ -363,7 +365,7 @@ function FolderRow({
               defaultValue={folder.name}
               className="flex-1 bg-transparent text-foreground text-[13px] outline-none border-b border-accent min-w-0"
               onKeyDown={(e) => {
-                if (e.key === "Enter")  { e.preventDefault(); onCommitRename(folder.id, e.currentTarget.value); }
+                if (e.key === "Enter") { e.preventDefault(); onCommitRename(folder.id, e.currentTarget.value); }
                 if (e.key === "Escape") { e.preventDefault(); onCancelRename(); }
                 e.stopPropagation();
               }}
@@ -469,7 +471,13 @@ export function Sidebar() {
     glassOpacity,
     canvasEnabled,
     plannerEnabled,
+    updateInfo,
+    updateInstallState,
+    installUpdate,
+    // dismissUpdateNotice,
   } = useAppStore();
+
+  console.log(updateInfo)
 
   // ── Inline rename state ─────────────────────────────────────────────────────
   const [renamingId, setRenamingId] = useState<string | null>(null);
@@ -707,9 +715,9 @@ export function Sidebar() {
             targetFolderId === null
               ? notes.filter((n) => n.folder === null)
               : folders.reduce<Note[]>((acc, f) => {
-                  const found = findNotesInFolder(f, targetFolderId);
-                  return found ?? acc;
-                }, []);
+                const found = findNotesInFolder(f, targetFolderId);
+                return found ?? acc;
+              }, []);
           const idx = siblings.findIndex((n) => n.id === overData.id);
           const insertBeforeId = siblings[idx + 1]?.id ?? null;
           reorderNote(activeData.id, targetFolderId, insertBeforeId);
@@ -1143,8 +1151,41 @@ export function Sidebar() {
           </div>
         </div>
 
+        {/* Update notice — quiet, dismissible, never a modal */}
+        {updateInfo && (
+          <div className="px-2 pt-2">
+            <button
+              onClick={() => { if (updateInstallState !== 'installing') installUpdate() }}
+              disabled={updateInstallState === 'installing'}
+              title={
+                updateInstallState === 'installing'
+                  ? 'Downloading and installing — the app will restart automatically'
+                  : `Install version ${updateInfo.version}`
+              }
+              className="w-full flex items-center gap-2 rounded-md bg-accent/10 border border-accent/20 px-2 py-3 -mt-14 hover:bg-accent/15 transition-colors disabled:opacity-70 disabled:cursor-default"
+            >
+              <ArrowUpCircle className="w-3.5 h-3.5 text-accent shrink-0" />
+              <span className="flex-1 text-left text-[11px] font-medium text-accent truncate">
+                {updateInstallState === 'installing'
+                  ? 'Installing update…'
+                  : updateInstallState === 'error'
+                    ? 'Update failed — click to retry'
+                    : `Update available · v${updateInfo.version}`}
+              </span>
+              {/* <button
+                onClick={dismissUpdateNotice}
+                title="Dismiss until the next update"
+                className="shrink-0 text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <X className="w-3.5 h-3.5" />
+                </button> */}
+              <ArrowRight className="w-4 h-4 text-accent shrink-0" />
+            </button>
+          </div>
+        )}
+
         {/* Settings button */}
-        <div className="px-2 py-2 border-t border-border mt-auto">
+        <div className={cn("px-2 py-2 border-t border-border", !updateInfo && "mt-auto")}>
           <SettingsDialog />
         </div>
 

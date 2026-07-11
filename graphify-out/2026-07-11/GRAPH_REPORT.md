@@ -1,11 +1,11 @@
 # Graph Report - inkwell  (2026-07-11)
 
 ## Corpus Check
-- 89 files · ~169,515 words
+- 89 files · ~169,496 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 1005 nodes · 1996 edges · 108 communities (70 shown, 38 thin omitted)
+- 1005 nodes · 1996 edges · 109 communities (71 shown, 38 thin omitted)
 - Extraction: 97% EXTRACTED · 3% INFERRED · 0% AMBIGUOUS · INFERRED: 59 edges (avg confidence: 0.61)
 - Token cost: 0 input · 0 output
 
@@ -117,6 +117,7 @@
 - [[_COMMUNITY_Slash Quick-Formatting Commands|Slash Quick-Formatting Commands]]
 - [[_COMMUNITY_EditSplitPreview View Modes|Edit/Split/Preview View Modes]]
 - [[_COMMUNITY_CheckboxWidget|CheckboxWidget]]
+- [[_COMMUNITY_local|local]]
 - [[_COMMUNITY_description|description]]
 
 ## God Nodes (most connected - your core abstractions)
@@ -149,7 +150,7 @@
 ## Hyperedges (group relationships)
 - **Excalidraw Iframe Bridge Data Flow** — public_excalidraw_frame_html, public_excalidraw_frame_html_postmessage_protocol, public_excalidraw_frame_html_schedulechange, canvas_feature_design_data_flow, canvas_feature_design_storage_model [INFERRED 0.85]
 
-## Communities (108 total, 38 thin omitted)
+## Communities (109 total, 38 thin omitted)
 
 ### Community 0 - "App Shell & Note Editing"
 Cohesion: 0.08
@@ -220,8 +221,8 @@ Cohesion: 0.12
 Nodes (16): anyOf, description, definitions, Application, Number, PermissionEntry, ShellScopeEntryAllowedArg, Target (+8 more)
 
 ### Community 17 - "Tauri macOS Capability Schema"
-Cohesion: 0.12
-Nodes (16): anyOf, description, definitions, Application, Number, PermissionEntry, ShellScopeEntryAllowedArgs, Target (+8 more)
+Cohesion: 0.13
+Nodes (15): anyOf, description, definitions, Application, Identifier, Number, PermissionEntry, Target (+7 more)
 
 ### Community 18 - "Project README & Build Config"
 Cohesion: 0.33
@@ -236,8 +237,8 @@ Cohesion: 0.12
 Nodes (13): autocompleteTheme, buildFileEmbedDecorations(), buildTableDecorations(), EMBED_IMAGE_EXTS, EMBED_VIDEO_EXTS, embedFileType(), ICON_GLYPH, inkwellHighlightStyle (+5 more)
 
 ### Community 21 - "macOS Schema Property Defs"
-Cohesion: 0.15
-Nodes (13): properties, Identifier, description, oneOf, type, default, description, type (+5 more)
+Cohesion: 0.18
+Nodes (11): properties, default, description, type, description, type, description, identifier (+3 more)
 
 ### Community 23 - "Tauri Desktop Schema Properties"
 Cohesion: 0.15
@@ -268,8 +269,8 @@ Cohesion: 0.50
 Nodes (4): default, description, type, description
 
 ### Community 30 - "Date Picker Component"
-Cohesion: 0.50
-Nodes (4): default, description, type, description
+Cohesion: 0.67
+Nodes (3): ShellScopeEntryAllowedArgs, anyOf, description
 
 ### Community 31 - "File Embed Widget (Editor)"
 Cohesion: 0.39
@@ -406,6 +407,10 @@ Nodes (3): index.html Vite Entry Point, React 19 + TypeScript, Vite Build Tool
 ### Community 73 - "ShellScopeEntryAllowedArg"
 Cohesion: 0.13
 Nodes (24): CustomThemeCard(), FONT_OPTIONS, FONT_SIZE_OPTIONS, formatVaultDate(), LINE_HEIGHT_OPTIONS, NAV_ITEMS, Section, SettingsDialog() (+16 more)
+
+### Community 107 - "local"
+Cohesion: 0.50
+Nodes (4): default, description, type, local
 
 ### Community 108 - "description"
 Cohesion: 0.67

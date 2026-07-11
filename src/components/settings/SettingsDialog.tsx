@@ -163,91 +163,91 @@ export function SettingsDialog() {
                     onCancel={handleCancelEditor}
                   />
                 ) : (
-                <div className="space-y-5">
-                  {/* Dark themes */}
-                  <div>
-                    <p className="text-[10px] font-semibold uppercase tracking-wider text-tertiary mb-3">Dark</p>
-                    <div className="grid grid-cols-4 gap-2">
-                      {DARK_THEMES.map(t => (
-                        <ThemeCard
-                          key={t.id}
-                          theme={t}
-                          selected={themeName === t.id}
-                          onSelect={() => setTheme(t.id)}
-                        />
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Light themes */}
-                  <div>
-                    <p className="text-[10px] font-semibold uppercase tracking-wider text-tertiary mb-3">Light</p>
-                    <div className="grid grid-cols-4 gap-2">
-                      {LIGHT_THEMES.map(t => (
-                        <ThemeCard
-                          key={t.id}
-                          theme={t}
-                          selected={themeName === t.id}
-                          onSelect={() => setTheme(t.id)}
-                        />
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Custom themes */}
-                  <div>
-                    <div className="flex items-center justify-between mb-3">
-                      <p className="text-[10px] font-semibold uppercase tracking-wider text-tertiary">Custom</p>
-                      <button
-                        onClick={() => setEditingTheme(undefined)}
-                        className="flex items-center gap-1 text-[10px] text-accent hover:opacity-80 transition-opacity font-medium"
-                      >
-                        <Plus className="w-3 h-3" />
-                        New theme
-                      </button>
-                    </div>
-                    {customThemes.length === 0 ? (
-                      <button
-                        onClick={() => setEditingTheme(undefined)}
-                        className={cn(
-                          'w-full flex items-center justify-center gap-2 py-6 rounded-lg border-2 border-dashed border-border',
-                          'text-xs text-muted-foreground hover:text-foreground hover:border-accent/50 transition-colors',
-                        )}
-                      >
-                        <Plus className="w-3.5 h-3.5" />
-                        Create your first theme
-                      </button>
-                    ) : (
+                  <div className="space-y-5">
+                    {/* Dark themes */}
+                    <div>
+                      <p className="text-[10px] font-semibold uppercase tracking-wider text-tertiary mb-3">Dark</p>
                       <div className="grid grid-cols-4 gap-2">
-                        {customThemes.map(t => (
-                          <CustomThemeCard
+                        {DARK_THEMES.map(t => (
+                          <ThemeCard
                             key={t.id}
                             theme={t}
                             selected={themeName === t.id}
                             onSelect={() => setTheme(t.id)}
-                            onEdit={() => setEditingTheme(t)}
-                            onDelete={() => deleteCustomTheme(t.id)}
                           />
                         ))}
                       </div>
-                    )}
-                  </div>
+                    </div>
 
-                  {/* Active theme label */}
-                  {(() => {
-                    const builtIn = THEMES.find(t => t.id === themeName)
-                    const custom = customThemes.find(t => t.id === themeName)
-                    const active = builtIn ?? custom
-                    return active ? (
-                      <div className="flex items-center gap-2 pt-1 text-xs text-muted-foreground">
-                        <span className="text-foreground font-medium">{active.label}</span>
-                        {builtIn && <><span>·</span><span>{builtIn.description}</span></>}
-                        {custom && <><span>·</span><span>Custom theme</span></>}
+                    {/* Light themes */}
+                    <div>
+                      <p className="text-[10px] font-semibold uppercase tracking-wider text-tertiary mb-3">Light</p>
+                      <div className="grid grid-cols-4 gap-2">
+                        {LIGHT_THEMES.map(t => (
+                          <ThemeCard
+                            key={t.id}
+                            theme={t}
+                            selected={themeName === t.id}
+                            onSelect={() => setTheme(t.id)}
+                          />
+                        ))}
                       </div>
-                    ) : null
-                  })()}
-                </div>
-              ))}
+                    </div>
+
+                    {/* Custom themes */}
+                    <div>
+                      <div className="flex items-center justify-between mb-3">
+                        <p className="text-[10px] font-semibold uppercase tracking-wider text-tertiary">Custom</p>
+                        <button
+                          onClick={() => setEditingTheme(undefined)}
+                          className="flex items-center gap-1 text-[10px] text-accent hover:opacity-80 transition-opacity font-medium"
+                        >
+                          <Plus className="w-3 h-3" />
+                          New theme
+                        </button>
+                      </div>
+                      {customThemes.length === 0 ? (
+                        <button
+                          onClick={() => setEditingTheme(undefined)}
+                          className={cn(
+                            'w-full flex items-center justify-center gap-2 py-6 rounded-lg border-2 border-dashed border-border',
+                            'text-xs text-muted-foreground hover:text-foreground hover:border-accent/50 transition-colors',
+                          )}
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                          Create your first theme
+                        </button>
+                      ) : (
+                        <div className="grid grid-cols-4 gap-2">
+                          {customThemes.map(t => (
+                            <CustomThemeCard
+                              key={t.id}
+                              theme={t}
+                              selected={themeName === t.id}
+                              onSelect={() => setTheme(t.id)}
+                              onEdit={() => setEditingTheme(t)}
+                              onDelete={() => deleteCustomTheme(t.id)}
+                            />
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Active theme label */}
+                    {(() => {
+                      const builtIn = THEMES.find(t => t.id === themeName)
+                      const custom = customThemes.find(t => t.id === themeName)
+                      const active = builtIn ?? custom
+                      return active ? (
+                        <div className="flex items-center gap-2 pt-1 text-xs text-muted-foreground">
+                          <span className="text-foreground font-medium">{active.label}</span>
+                          {builtIn && <><span>·</span><span>{builtIn.description}</span></>}
+                          {custom && <><span>·</span><span>Custom theme</span></>}
+                        </div>
+                      ) : null
+                    })()}
+                  </div>
+                ))}
 
               {/* ── Appearance ── */}
               {section === 'appearance' && (
@@ -473,7 +473,7 @@ export function SettingsDialog() {
                     />
                     <div>
                       <p className="text-sm font-semibold text-foreground">inkwell</p>
-                      <p className="text-xs text-muted-foreground">Version 0.4.1</p>
+                      <p className="text-xs text-muted-foreground">Version 0.7.0</p>
                     </div>
                   </div>
 
