@@ -65,9 +65,9 @@
     "semantic_hash": "2cc12cbb6c5dbad453b341908954fecb"
   },
   "src-tauri/src/lib.rs": {
-    "mtime": 1783613884.0597682,
-    "ast_hash": "003c522b20cc4f9e4c4bde854288f9cb",
-    "semantic_hash": ""
+    "mtime": 1782983176.3928254,
+    "ast_hash": "acfbc228076620a6e7f55e81bfb3070a",
+    "semantic_hash": "acfbc228076620a6e7f55e81bfb3070a"
   },
   "src-tauri/src/main.rs": {
     "mtime": 1782980448.809384,
@@ -195,8 +195,8 @@
     "semantic_hash": ""
   },
   "src/components/layout/AppShell.tsx": {
-    "mtime": 1783613968.0319815,
-    "ast_hash": "fcc54064fc5dcc1643215f68b980b680",
+    "mtime": 1783590678.9026594,
+    "ast_hash": "8de7479edf61842ec9759ba541900fdd",
     "semantic_hash": ""
   },
   "src/components/layout/EditorPane.tsx": {
@@ -375,8 +375,8 @@
     "semantic_hash": "912ed2887ab8f9be43f625930982407a"
   },
   "src/store/useAppStore.ts": {
-    "mtime": 1783613951.378815,
-    "ast_hash": "0a7831134720a96651410bb90dc85d6c",
+    "mtime": 1783419838.7129512,
+    "ast_hash": "bc48dffeb6c7e31aade17084709e1506",
     "semantic_hash": ""
   },
   "src/types/index.ts": {

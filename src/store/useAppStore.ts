@@ -47,10 +47,10 @@ import { loadShortcuts, saveShortcuts, DEFAULT_SHORTCUTS } from "../lib/shortcut
 // Native NSVisualEffectView vibrancy applies to the whole window regardless of
 // which region's CSS actually reveals it — so it only needs to be on if *either*
 // the sidebar or the body glass toggle is on, off only when both are off.
-function syncVibrancy(enabled: boolean): void {
+function syncVibrancy(enabled: boolean, dark: boolean): void {
   if (typeof window !== "undefined" && "__TAURI_INTERNALS__" in window) {
     import("@tauri-apps/api/core").then(({ invoke }) => {
-      invoke("set_vibrancy", { enabled }).catch(console.error);
+      invoke("set_vibrancy", { enabled, dark }).catch(console.error);
     });
   }
 }
@@ -741,6 +741,10 @@ export const useAppStore = create<AppState>((set, get) => ({
     localStorage.setItem("inkwell-theme", name);
     localStorage.setItem(dark ? "inkwell-last-dark-theme" : "inkwell-last-light-theme", name);
     set({ themeName: name, theme: dark ? "dark" : "light" });
+    // Keep native vibrancy's blur material in sync with the newly-selected
+    // theme — otherwise it keeps rendering the previous theme's tint.
+    const { sidebarGlass, bodyGlass } = get();
+    if (sidebarGlass || bodyGlass) syncVibrancy(true, dark);
   },
 
   toggleTheme: () => {
@@ -763,6 +767,8 @@ export const useAppStore = create<AppState>((set, get) => ({
     localStorage.setItem("inkwell-theme", next);
     localStorage.setItem(nextDark ? "inkwell-last-dark-theme" : "inkwell-last-light-theme", next);
     set({ themeName: next, theme: nextDark ? "dark" : "light" });
+    const { sidebarGlass, bodyGlass } = get();
+    if (sidebarGlass || bodyGlass) syncVibrancy(true, nextDark);
   },
 
   saveCustomTheme: (theme) => {
@@ -811,13 +817,13 @@ export const useAppStore = create<AppState>((set, get) => ({
   setSidebarGlass: (enabled) => {
     localStorage.setItem("inkwell-sidebar-glass", String(enabled));
     set({ sidebarGlass: enabled });
-    syncVibrancy(enabled || get().bodyGlass);
+    syncVibrancy(enabled || get().bodyGlass, get().theme === "dark");
   },
 
   setBodyGlass: (enabled) => {
     localStorage.setItem("inkwell-body-glass", String(enabled));
     set({ bodyGlass: enabled });
-    syncVibrancy(enabled || get().sidebarGlass);
+    syncVibrancy(enabled || get().sidebarGlass, get().theme === "dark");
   },
 
   setGlassOpacity: (percent) => {

@@ -77,25 +77,8 @@ export const QuickNoteEditor = forwardRef<QuickNoteEditorHandle, QuickNoteEditor
           borderRadius: '2px',
           padding: '0 1px',
         },
-        '.cm-tooltip-autocomplete': {
-          backgroundColor: 'hsl(var(--surface))',
-          border: '1px solid hsl(var(--border))',
-          borderRadius: '8px',
-          boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
-          overflow: 'hidden',
-          padding: '4px',
-        },
-        '.cm-tooltip.cm-tooltip-autocomplete > ul': { maxHeight: '200px' },
-        '.cm-tooltip-autocomplete ul li': {
-          padding: '6px 10px',
-          borderRadius: '4px',
-          color: 'hsl(var(--foreground))',
-          fontSize: '12px',
-        },
-        '.cm-tooltip-autocomplete ul li[aria-selected]': {
-          backgroundColor: 'hsl(var(--active))',
-          color: 'hsl(var(--foreground))',
-        },
+        // Autocomplete (slash command / @-mention) popup styling lives in
+        // autocompleteTheme, bundled into slashCommandCompletion below.
       })
 
       // Cmd/Ctrl+Enter saves, Escape cancels — placed ahead of the default

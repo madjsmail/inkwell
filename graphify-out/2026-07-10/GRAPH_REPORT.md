@@ -1,16 +1,16 @@
-# Graph Report - inkwell  (2026-07-10)
+# Graph Report - inkwell  (2026-07-09)
 
 ## Corpus Check
-- 88 files · ~168,819 words
+- 88 files · ~168,602 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 997 nodes · 1983 edges · 106 communities (69 shown, 37 thin omitted)
+- 997 nodes · 1983 edges · 105 communities (68 shown, 37 thin omitted)
 - Extraction: 97% EXTRACTED · 3% INFERRED · 0% AMBIGUOUS · INFERRED: 59 edges (avg confidence: 0.61)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `36f5024d`
+- Built from commit: `6584e86a`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -67,7 +67,6 @@
 - [[_COMMUNITY_Canvas Settings Toggle & Store|Canvas Settings Toggle & Store]]
 - [[_COMMUNITY_Default Capability Manifest|Default Capability Manifest]]
 - [[_COMMUNITY_Quick Note Capability Manifest|Quick Note Capability Manifest]]
-- [[_COMMUNITY_local|local]]
 - [[_COMMUNITY_Desktop Schema Root|Desktop Schema Root]]
 - [[_COMMUNITY_macOS Schema Root|macOS Schema Root]]
 - [[_COMMUNITY_Desktop Schema Capability Type|Desktop Schema Capability Type]]
@@ -147,7 +146,7 @@
 ## Hyperedges (group relationships)
 - **Excalidraw Iframe Bridge Data Flow** — public_excalidraw_frame_html, public_excalidraw_frame_html_postmessage_protocol, public_excalidraw_frame_html_schedulechange, canvas_feature_design_data_flow, canvas_feature_design_storage_model [INFERRED 0.85]
 
-## Communities (106 total, 37 thin omitted)
+## Communities (105 total, 37 thin omitted)
 
 ### Community 0 - "App Shell & Note Editing"
 Cohesion: 0.16
@@ -214,12 +213,12 @@ Cohesion: 0.16
 Nodes (16): DragItemData, DropIndicator, DropLine(), DropPosition, findFolderChildren(), findNotesInFolder(), flatFolders(), folderIconOffset() (+8 more)
 
 ### Community 16 - "Tauri Desktop Capability Schema"
-Cohesion: 0.13
-Nodes (15): anyOf, description, definitions, Application, Identifier, Number, PermissionEntry, Target (+7 more)
+Cohesion: 0.12
+Nodes (16): anyOf, description, definitions, Application, Number, PermissionEntry, ShellScopeEntryAllowedArg, Target (+8 more)
 
 ### Community 17 - "Tauri macOS Capability Schema"
 Cohesion: 0.12
-Nodes (16): anyOf, description, definitions, Application, Number, PermissionEntry, ShellScopeEntryAllowedArgs, Target (+8 more)
+Nodes (16): anyOf, description, definitions, Application, Number, PermissionEntry, ShellScopeEntryAllowedArg, Target (+8 more)
 
 ### Community 18 - "Project README & Build Config"
 Cohesion: 0.33
@@ -238,8 +237,8 @@ Cohesion: 0.15
 Nodes (13): properties, Identifier, description, oneOf, type, default, description, type (+5 more)
 
 ### Community 23 - "Tauri Desktop Schema Properties"
-Cohesion: 0.18
-Nodes (11): properties, default, description, type, description, type, description, identifier (+3 more)
+Cohesion: 0.15
+Nodes (13): properties, Identifier, description, oneOf, type, default, description, type (+5 more)
 
 ### Community 24 - "NPM Dev Dependencies"
 Cohesion: 0.17
@@ -345,10 +344,6 @@ Nodes (5): description, identifier, permissions, $schema, windows
 Cohesion: 0.33
 Nodes (5): description, identifier, permissions, $schema, windows
 
-### Community 52 - "local"
-Cohesion: 0.50
-Nodes (4): default, description, type, local
-
 ### Community 53 - "Desktop Schema Root"
 Cohesion: 0.40
 Nodes (4): anyOf, description, $schema, title
@@ -362,8 +357,8 @@ Cohesion: 0.50
 Nodes (4): description, required, type, Capability
 
 ### Community 56 - "Desktop Schema Field Defaults"
-Cohesion: 0.67
-Nodes (3): ShellScopeEntryAllowedArg, anyOf, description
+Cohesion: 0.50
+Nodes (4): default, description, type, description
 
 ### Community 57 - "macOS Schema Capability Type"
 Cohesion: 0.50
@@ -383,7 +378,7 @@ Nodes (4): A few tips, Markdown basics, Welcome to inkwell ✒️, What you can 
 
 ### Community 61 - "macOS Shell Scope Args"
 Cohesion: 0.67
-Nodes (3): ShellScopeEntryAllowedArg, anyOf, description
+Nodes (3): ShellScopeEntryAllowedArgs, anyOf, description
 
 ### Community 62 - "macOS Schema Value Type"
 Cohesion: 0.67

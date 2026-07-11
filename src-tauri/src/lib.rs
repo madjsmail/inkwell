@@ -8,17 +8,35 @@ const QUICK_NOTE_LABEL: &str = "quick-note";
 
 /// Toggle macOS NSVisualEffectView (native sidebar glass) on the main window.
 /// No-op on non-macOS platforms.
+///
+/// `dark` is inkwell's *in-app* theme (light/dark), which is independent of the
+/// OS system appearance. NSVisualEffectView's blur material otherwise follows
+/// the window's NSAppearance, which defaults to the OS system setting — so if
+/// those two are out of sync (e.g. OS in dark mode, an inkwell light theme
+/// selected), the native blur renders the wrong tint underneath the CSS overlay,
+/// producing a washed-out, low-contrast look. Explicitly setting the window's
+/// theme to match keeps the vibrancy material in sync with whichever theme is
+/// actually showing.
 #[tauri::command]
-fn set_vibrancy(window: tauri::WebviewWindow, enabled: bool) {
+fn set_vibrancy(window: tauri::WebviewWindow, enabled: bool, dark: bool) {
     #[cfg(target_os = "macos")]
     {
         if enabled {
+            let theme = if dark { tauri::Theme::Dark } else { tauri::Theme::Light };
+            if let Err(e) = window.set_theme(Some(theme)) {
+                eprintln!("[inkwell] set_theme failed: {e}");
+            }
             if let Err(e) = apply_vibrancy(&window, NSVisualEffectMaterial::Sidebar, None, None) {
                 eprintln!("[inkwell] apply_vibrancy failed: {e}");
             } else {
                 eprintln!("[inkwell] apply_vibrancy OK");
             }
         } else {
+            // Let the window appearance follow the OS system setting again now
+            // that there's no vibrancy material to keep in sync with.
+            if let Err(e) = window.set_theme(None) {
+                eprintln!("[inkwell] set_theme reset failed: {e}");
+            }
             match clear_vibrancy(&window) {
                 Ok(cleared) => eprintln!("[inkwell] clear_vibrancy OK (cleared={cleared})"),
                 Err(e) => eprintln!("[inkwell] clear_vibrancy failed: {e}"),
@@ -27,7 +45,7 @@ fn set_vibrancy(window: tauri::WebviewWindow, enabled: bool) {
     }
     // Suppress unused variable warning on non-macOS
     #[cfg(not(target_os = "macos"))]
-    let _ = (window, enabled);
+    let _ = (window, enabled, dark);
 }
 
 /// Show the quick-note popup, focusing an existing instance instead of

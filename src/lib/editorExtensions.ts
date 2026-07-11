@@ -33,23 +33,108 @@ export const inkwellHighlightStyle = HighlightStyle.define([
 
 export const markdownHighlighting = syntaxHighlighting(inkwellHighlightStyle)
 
+// ─── Autocomplete popup theme ──────────────────────────────────────────────────
+// Shared by both the slash-command and @-mention popups (MarkdownEditor and
+// QuickNoteEditor both wire this in). Icons are CodeMirror's own mechanism:
+// each completion's `type` picks a `.cm-completionIcon-<type>` class, which we
+// style with a `content` glyph below — see SLASH_COMMANDS' `type` field and the
+// 'iknote' type used for @-mentions.
+
+const ICON_GLYPH: Record<string, string> = {
+  ikheading1: 'H1', ikheading2: 'H2', ikheading3: 'H3',
+  ikbullet: '≡', iknumbered: '1.', iktodo: '☑', ikquote: '"',
+  ikcode: '</>', iktable: '▦', ikhighlight: '▮', ikdivider: '—',
+  ikbold: 'B', ikitalic: 'I', ikvideo: '▶', iknote: '📄',
+}
+
+function iconRules(): Record<string, unknown> {
+  const rules: Record<string, unknown> = {}
+  for (const [type, glyph] of Object.entries(ICON_GLYPH)) {
+    rules[`.cm-completionIcon-${type}`] = { '&:after': { content: `'${glyph}'` } }
+  }
+  return rules
+}
+
+export const autocompleteTheme = EditorView.theme({
+  '.cm-tooltip-autocomplete': {
+    backgroundColor: 'hsl(var(--surface))',
+    border: '1px solid hsl(var(--border))',
+    borderRadius: '10px',
+    boxShadow: '0 8px 24px rgba(0,0,0,0.16), 0 2px 8px rgba(0,0,0,0.10)',
+    overflow: 'hidden',
+    padding: '6px',
+  },
+  '.cm-tooltip.cm-tooltip-autocomplete > ul': {
+    // Deliberately not editorFontFamily — this is UI chrome, not document
+    // content, so it shouldn't follow the user's prose font (e.g. a serif).
+    fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+    maxHeight: '320px',
+  },
+  '.cm-tooltip-autocomplete ul li': {
+    display: 'flex',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    padding: '6px 8px',
+    margin: '1px 0',
+    borderRadius: '7px',
+  },
+  '.cm-tooltip-autocomplete ul li[aria-selected]': {
+    backgroundColor: 'hsl(var(--accent) / 0.12)',
+  },
+  '.cm-tooltip-autocomplete ul li[aria-selected] .cm-completionLabel': {
+    color: 'hsl(var(--accent))',
+  },
+  '.cm-completionIcon': {
+    flexShrink: '0',
+    width: '22px',
+    height: '22px',
+    marginRight: '10px',
+    borderRadius: '6px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontSize: '10px',
+    fontWeight: '700',
+    letterSpacing: '-0.02em',
+    backgroundColor: 'hsl(var(--accent) / 0.12)',
+    color: 'hsl(var(--accent))',
+    opacity: '1',
+    padding: '0',
+    boxSizing: 'border-box',
+  },
+  '.cm-completionLabel': {
+    fontSize: '13px',
+    fontWeight: '500',
+    color: 'hsl(var(--foreground))',
+  },
+  '.cm-completionDetail': {
+    flexBasis: '100%',
+    marginLeft: '32px',
+    marginTop: '1px',
+    fontSize: '11px',
+    fontStyle: 'normal',
+    color: 'hsl(var(--muted-foreground))',
+  },
+  ...iconRules(),
+})
+
 // ─── Slash Command Autocomplete ───────────────────────────────────────────────
 
 const SLASH_COMMANDS = [
-  { label: '/heading1', displayLabel: 'Heading 1', detail: '# Large heading', apply: '# ' },
-  { label: '/heading2', displayLabel: 'Heading 2', detail: '## Medium heading', apply: '## ' },
-  { label: '/heading3', displayLabel: 'Heading 3', detail: '### Small heading', apply: '### ' },
-  { label: '/bullet', displayLabel: 'Bullet List', detail: '- Unordered list', apply: '- ' },
-  { label: '/numbered', displayLabel: 'Numbered List', detail: '1. Ordered list', apply: '1. ' },
-  { label: '/todo', displayLabel: 'To-do', detail: '- [ ] Checkbox item', apply: '- [ ] ' },
-  { label: '/quote', displayLabel: 'Quote', detail: '> Blockquote', apply: '> ' },
-  { label: '/code', displayLabel: 'Code Block', detail: 'Fenced code block', apply: '```\n\n```' },
-  { label: '/table', displayLabel: 'Table', detail: '3-column table', apply: '| Column 1 | Column 2 | Column 3 |\n| -------- | -------- | -------- |\n| Cell     | Cell     | Cell     |\n' },
-  { label: '/highlight', displayLabel: 'Highlight', detail: '==highlighted text==', apply: '====', boost: -1 },
-  { label: '/divider', displayLabel: 'Divider', detail: '--- Horizontal rule', apply: '---\n' },
-  { label: '/bold', displayLabel: 'Bold', detail: '**bold text**', apply: '****', boost: -1 },
-  { label: '/italic', displayLabel: 'Italic', detail: '*italic text*', apply: '**', boost: -1 },
-  { label: '/video', displayLabel: 'Video Embed', detail: 'YouTube / Vimeo / Loom', apply: '__VIDEO_URL__' },
+  { label: '/heading1', displayLabel: 'Heading 1', detail: '# Large heading', apply: '# ', type: 'ikheading1' },
+  { label: '/heading2', displayLabel: 'Heading 2', detail: '## Medium heading', apply: '## ', type: 'ikheading2' },
+  { label: '/heading3', displayLabel: 'Heading 3', detail: '### Small heading', apply: '### ', type: 'ikheading3' },
+  { label: '/bullet', displayLabel: 'Bullet List', detail: '- Unordered list', apply: '- ', type: 'ikbullet' },
+  { label: '/numbered', displayLabel: 'Numbered List', detail: '1. Ordered list', apply: '1. ', type: 'iknumbered' },
+  { label: '/todo', displayLabel: 'To-do', detail: '- [ ] Checkbox item', apply: '- [ ] ', type: 'iktodo' },
+  { label: '/quote', displayLabel: 'Quote', detail: '> Blockquote', apply: '> ', type: 'ikquote' },
+  { label: '/code', displayLabel: 'Code Block', detail: 'Fenced code block', apply: '```\n\n```', type: 'ikcode' },
+  { label: '/table', displayLabel: 'Table', detail: '3-column table', apply: '| Column 1 | Column 2 | Column 3 |\n| -------- | -------- | -------- |\n| Cell     | Cell     | Cell     |\n', type: 'iktable' },
+  { label: '/highlight', displayLabel: 'Highlight', detail: '==highlighted text==', apply: '====', boost: -1, type: 'ikhighlight' },
+  { label: '/divider', displayLabel: 'Divider', detail: '--- Horizontal rule', apply: '---\n', type: 'ikdivider' },
+  { label: '/bold', displayLabel: 'Bold', detail: '**bold text**', apply: '****', boost: -1, type: 'ikbold' },
+  { label: '/italic', displayLabel: 'Italic', detail: '*italic text*', apply: '**', boost: -1, type: 'ikitalic' },
+  { label: '/video', displayLabel: 'Video Embed', detail: 'YouTube / Vimeo / Loom', apply: '__VIDEO_URL__', type: 'ikvideo' },
 ]
 
 function slashCompletion(context: CompletionContext): CompletionResult | null {
@@ -69,6 +154,7 @@ function slashCompletion(context: CompletionContext): CompletionResult | null {
       displayLabel: cmd.displayLabel,
       detail: cmd.detail,
       boost: (cmd as any).boost,
+      type: cmd.type,
       apply: (view: EditorView, _completion: unknown, slashFrom: number, slashTo: number) => {
         if (cmd.apply === '__VIDEO_URL__') {
           // Insert on its own line, select "URL" so the user can paste immediately
@@ -124,6 +210,7 @@ function noteMentionCompletion(context: CompletionContext): CompletionResult | n
     options: filtered.map(note => ({
       label: `@${note.title}`,
       detail: note.folder ?? undefined,
+      type: 'iknote',
       apply: (view, _completion, from, to) => {
         view.dispatch({ changes: { from, to, insert: `[@${note.title}](note://${note.id})` } })
         const { selectedNoteIds, addNoteLink } = useAppStore.getState()
@@ -361,7 +448,7 @@ function buildTableDecorations(view: EditorView): DecorationSet {
   // ── Pass 2: emit decorations only for visible lines ───────────────────────
   for (const { from, to } of view.visibleRanges) {
     const startLine = doc.lineAt(from).number
-    const endLine   = doc.lineAt(to).number
+    const endLine = doc.lineAt(to).number
 
     for (let lineNum = startLine; lineNum <= endLine; lineNum++) {
       const type = lineTypes.get(lineNum)
@@ -371,10 +458,10 @@ function buildTableDecorations(view: EditorView): DecorationSet {
 
       // Line-level background decoration
       const cls =
-        type === 'header'    ? 'cm-table-header'    :
-        type === 'separator' ? 'cm-table-separator' :
-        type === 'row-even'  ? 'cm-table-row-even'  :
-                               'cm-table-row-odd'
+        type === 'header' ? 'cm-table-header' :
+          type === 'separator' ? 'cm-table-separator' :
+            type === 'row-even' ? 'cm-table-row-even' :
+              'cm-table-row-odd'
       decs.push(Decoration.line({ attributes: { class: cls } }).range(line.from))
 
       // Color each '|' pipe character (skip separator rows — dashes are the content)
@@ -662,8 +749,8 @@ class FileEmbedWidget extends WidgetType {
     const iconEl = document.createElement('span')
     iconEl.style.cssText = 'font-size:16px;line-height:1;flex-shrink:0'
     iconEl.textContent =
-      this.type === 'pdf'   ? '📄' :
-      this.type === 'video' ? '🎬' : '📎'
+      this.type === 'pdf' ? '📄' :
+        this.type === 'video' ? '🎬' : '📎'
 
     const nameEl = document.createElement('span')
     nameEl.style.cssText = [
@@ -838,9 +925,9 @@ class FileEmbedWidget extends WidgetType {
           const ext = this.relativePath.split('.').pop()?.toLowerCase() ?? 'mp4'
           const videoMime =
             ext === 'webm' ? 'video/webm' :
-            ext === 'mov'  ? 'video/quicktime' :
-            ext === 'avi'  ? 'video/x-msvideo' :
-            'video/mp4'
+              ext === 'mov' ? 'video/quicktime' :
+                ext === 'avi' ? 'video/x-msvideo' :
+                  'video/mp4'
           resolveUrl(videoMime)
             .then(url => { video.src = url })
             .catch(() => {
@@ -906,7 +993,7 @@ class FileEmbedWidget extends WidgetType {
 function buildFileEmbedDecorations(
   view: EditorView,
   vaultPath: string,
-  onRemove: (relativePath: string) => void = () => {},
+  onRemove: (relativePath: string) => void = () => { },
   searchRoot?: string,
 ): DecorationSet {
   const widgets: Range<Decoration>[] = []
@@ -918,17 +1005,17 @@ function buildFileEmbedDecorations(
     let m: RegExpExecArray | null
     while ((m = FILE_EMBED_RE.exec(text)) !== null) {
       const matchFrom = from + m.index
-      const matchTo   = matchFrom + m[0].length
+      const matchTo = matchFrom + m[0].length
 
       const relativePath = m[1]                             // e.g. "attachments/doc.pdf"
-      const namePart      = m[2] ?? ''                      // display name
-      const sizePart      = m[3] ?? '0'                     // size in bytes
+      const namePart = m[2] ?? ''                      // display name
+      const sizePart = m[3] ?? '0'                     // size in bytes
 
-      const ext         = relativePath.split('.').pop()?.toLowerCase() ?? ''
-      const type        = embedFileType(ext)
+      const ext = relativePath.split('.').pop()?.toLowerCase() ?? ''
+      const type = embedFileType(ext)
       const displayName = namePart || relativePath.split('/').pop() || relativePath
-      const sizeBytes   = parseInt(sizePart) || 0
-      const fullPath    = vaultPath ? `${vaultPath}/${relativePath}` : relativePath
+      const sizeBytes = parseInt(sizePart) || 0
+      const fullPath = vaultPath ? `${vaultPath}/${relativePath}` : relativePath
 
       widgets.push(
         Decoration.replace({
@@ -945,7 +1032,7 @@ function buildFileEmbedDecorations(
 /** Factory — call once per EditorState with the current vaultPath. */
 export function createFileEmbedPlugin(
   vaultPath: string,
-  onRemove: (relativePath: string) => void = () => {},
+  onRemove: (relativePath: string) => void = () => { },
   searchRoot?: string,
 ) {
   return ViewPlugin.fromClass(
