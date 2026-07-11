@@ -7,7 +7,7 @@ import { useAppStore } from '../../store/useAppStore'
 import { saveNote } from '../../lib/fs'
 import { cn, glassBg } from '../../lib/utils'
 
-import { markdownHighlighting, slashCommandCompletion, tryAbbreviationReplace, highlightMarkPlugin, tablePlugin, createFileEmbedPlugin } from '../../lib/editorExtensions'
+import { markdownHighlighting, slashCommandCompletion, tryAbbreviationReplace, highlightMarkPlugin, tablePlugin, createFileEmbedPlugin, autocompleteTheme } from '../../lib/editorExtensions'
 import { searchHighlightExtension } from '../../lib/searchHighlightExtension'
 import { useEditorViewRef } from './EditorViewContext'
 import { deleteAttachmentFile } from '../../lib/attachments'
@@ -147,6 +147,7 @@ export function MarkdownEditor({ noteId, content, onScrollerReady }: MarkdownEdi
         tablePlugin,
         createFileEmbedPlugin(vaultPath ?? '', handleRemoveEmbed, useAppStore.getState().notes.find(n => n.id === noteId)?.searchRoot),
         slashCommandCompletion,
+        autocompleteTheme,
         EditorView.lineWrapping,
         ...searchHighlightExtension,
         customTheme,
