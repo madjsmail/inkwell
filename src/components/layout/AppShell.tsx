@@ -19,7 +19,7 @@ import { comboMatches } from '../../lib/shortcuts'
 import { cn, glassBg } from '../../lib/utils'
 
 export function AppShell() {
-  const { activeView, setActiveView, setSearchOpen, vaultPath, openVault, toggleSidebar, sidebarOpen, initPlanner, openExternalNote, bodyGlass, glassOpacity, createNote, createFolder, openPrompt } = useAppStore()
+  const { activeView, setActiveView, setSearchOpen, vaultPath, openVault, toggleSidebar, sidebarOpen, initPlanner, openExternalNote, bodyGlass, glassOpacity, createNote, createFolder, openPrompt, checkForUpdates } = useAppStore()
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Restore theme from localStorage on mount
@@ -71,6 +71,13 @@ export function AppShell() {
   // Load planner data from global app storage on startup (vault-independent)
   useEffect(() => {
     initPlanner()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Quiet background check for a newer release — see updateCheck.ts for the
+  // rate-limiting/dismissal rules that keep this from ever nagging.
+  useEffect(() => {
+    checkForUpdates()
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 

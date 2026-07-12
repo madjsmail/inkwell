@@ -38,6 +38,8 @@ import {
 } from "../lib/vault";
 import { saveNote } from "../lib/fs";
 import { loadShortcuts, saveShortcuts, DEFAULT_SHORTCUTS } from "../lib/shortcuts";
+import { checkForAppUpdate } from "../lib/updateCheck";
+import type { Update } from "@tauri-apps/plugin-updater";
 
 // ─── Active-vault state file ──────────────────────────────────────────────────
 // Written to ~/.inkwell/active-vault whenever the user opens a vault.
@@ -214,6 +216,11 @@ interface AppState {
   saveStatus: "saved" | "saving" | "idle";
   prompt: NamePromptConfig | null;
   confirm: ConfirmConfig | null;
+  updateInfo: Update | null;
+  updateInstallState: "idle" | "installing" | "error";
+  checkForUpdates: () => Promise<void>;
+  installUpdate: () => Promise<void>;
+  dismissUpdateNotice: () => void;
 
   openVault: (path: string, data: VaultData | null) => void;
   closeVault: () => void;
@@ -569,6 +576,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   sidebarOpen: true,
   prompt: null,
   confirm: null,
+  updateInfo: null,
+  updateInstallState: "idle",
   boards: [],
   boardColumns: [],
   boardTasks: [],
@@ -841,6 +850,33 @@ export const useAppStore = create<AppState>((set, get) => ({
   resetShortcuts: () => {
     saveShortcuts(DEFAULT_SHORTCUTS);
     set({ shortcuts: { ...DEFAULT_SHORTCUTS } });
+  },
+
+  checkForUpdates: async () => {
+    const update = await checkForAppUpdate();
+    if (update) set({ updateInfo: update, updateInstallState: "idle" });
+  },
+
+  installUpdate: async () => {
+    const update = get().updateInfo;
+    if (!update) return;
+    set({ updateInstallState: "installing" });
+    try {
+      await update.downloadAndInstall();
+      const { relaunch } = await import("@tauri-apps/plugin-process");
+      await relaunch();
+    } catch (e) {
+      console.error("[inkwell] update install failed:", e);
+      set({ updateInstallState: "error" });
+    }
+  },
+
+  // Session-only — the Update resource is closed and forgotten, so a
+  // still-outdated app shows the notice again on the next launch rather than
+  // staying silenced forever.
+  dismissUpdateNotice: () => {
+    get().updateInfo?.close().catch(() => {});
+    set({ updateInfo: null, updateInstallState: "idle" });
   },
 
   setCanvasEnabled: (enabled) => {

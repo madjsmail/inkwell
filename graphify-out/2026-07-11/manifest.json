@@ -210,8 +210,8 @@
     "semantic_hash": ""
   },
   "src/components/layout/Sidebar.tsx": {
-    "mtime": 1783787077.8970757,
-    "ast_hash": "ee5f628d196f16eb13c177c4d0027200",
+    "mtime": 1783766189.0066023,
+    "ast_hash": "8810917122bbe20e7b7724e198bfb51c",
     "semantic_hash": ""
   },
   "src/components/planner/WeeklyPlannerView.tsx": {
