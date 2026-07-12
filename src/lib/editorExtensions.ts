@@ -223,14 +223,80 @@ function noteMentionCompletion(context: CompletionContext): CompletionResult | n
   }
 }
 
-export const slashCommandCompletion = [
-  autocompletion({
-    override: [slashCompletion, noteMentionCompletion],
-    activateOnTyping: true,
-    closeOnBlur: true,
-  }),
-  autocompleteTheme,
-]
+
+const BUILT_IN_ABBREVIATIONS: Record<string, () => string> = {
+  today: () => new Date().toISOString().split('T')[0],
+  tomorrow: () => { const d = new Date(); d.setDate(d.getDate() + 1); return d.toISOString().split('T')[0] },
+  nextweek: () => { const d = new Date(); d.setDate(d.getDate() + 7); return d.toISOString().split('T')[0] },
+  nextmonth: () => { const d = new Date(); d.setMonth(d.getMonth() + 1); return d.toISOString().split('T')[0] },
+  now: () => new Date().toTimeString().split(' ')[0].substring(0, 5),
+}
+
+function abbreviationCompletion(context: CompletionContext): CompletionResult | null {
+  const { abbreviationTrigger, abbreviations } = useAppStore.getState()
+  const trigger = abbreviationTrigger || ':'
+  const esc = trigger.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+  const line = context.state.doc.lineAt(context.pos)
+  const before = context.state.sliceDoc(line.from, context.pos)
+  const match = before.match(new RegExp(`(^|\\s)(${esc}(\\w*))$`))
+  if (!match) return null
+
+  const word = match[2]
+  const prefixLen = match[1].length
+  const from = line.from + match.index! + prefixLen
+
+  const all = [
+    ...Object.entries(BUILT_IN_ABBREVIATIONS).map(([k, fn]) => ({ key: `${trigger}${k}`, value: fn() })),
+    ...abbreviations.map(a => ({ key: `${trigger}${a.key}`, value: a.value })),
+  ].filter(a => a.key.startsWith(word))
+
+  if (all.length === 0) return null
+
+  return {
+    from,
+    validFor: new RegExp(`^${esc}\\w*$`),
+    options: all.map(({ key, value }) => ({
+      label: key,
+      detail: value,
+      apply: (view, _completion, _from, _to) => {
+        view.dispatch({ changes: { from, to: context.pos, insert: value } })
+      },
+    })),
+  }
+}
+
+
+export function tryAbbreviationReplace(view: EditorView, pending: string): boolean {
+  const pos = view.state.selection.main.head
+  const line = view.state.doc.lineAt(pos)
+  const before = view.state.sliceDoc(line.from, pos) + pending
+
+  const { abbreviationTrigger, abbreviations } = useAppStore.getState()
+  const trigger = abbreviationTrigger || ':'
+  const esc = trigger.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+  const match = before.match(new RegExp(`(^|\\s)(${esc}(\\w*))$`))
+  if (!match) return false
+
+  const key = match[3]
+  if (!key) return false
+
+  const builtIn = BUILT_IN_ABBREVIATIONS[key]
+  const custom = builtIn !== undefined ? undefined : abbreviations.find(a => a.key === key)
+  const value = builtIn ? builtIn() : custom?.value
+  if (!value) return false
+
+  const from = line.from + match.index! + match[1].length
+  view.dispatch({ changes: { from, to: pos, insert: value } })
+  return true
+}
+
+export const slashCommandCompletion = autocompletion({
+  override: [slashCompletion, noteMentionCompletion, abbreviationCompletion],
+  activateOnTyping: true,
+  closeOnBlur: true,
+})
 
 // ─── Todo Checkbox Widget ─────────────────────────────────────────────────────
 
@@ -382,7 +448,7 @@ function buildTableDecorations(view: EditorView): DecorationSet {
   // ── Pass 2: emit decorations only for visible lines ───────────────────────
   for (const { from, to } of view.visibleRanges) {
     const startLine = doc.lineAt(from).number
-    const endLine   = doc.lineAt(to).number
+    const endLine = doc.lineAt(to).number
 
     for (let lineNum = startLine; lineNum <= endLine; lineNum++) {
       const type = lineTypes.get(lineNum)
@@ -392,10 +458,10 @@ function buildTableDecorations(view: EditorView): DecorationSet {
 
       // Line-level background decoration
       const cls =
-        type === 'header'    ? 'cm-table-header'    :
-        type === 'separator' ? 'cm-table-separator' :
-        type === 'row-even'  ? 'cm-table-row-even'  :
-                               'cm-table-row-odd'
+        type === 'header' ? 'cm-table-header' :
+          type === 'separator' ? 'cm-table-separator' :
+            type === 'row-even' ? 'cm-table-row-even' :
+              'cm-table-row-odd'
       decs.push(Decoration.line({ attributes: { class: cls } }).range(line.from))
 
       // Color each '|' pipe character (skip separator rows — dashes are the content)
@@ -683,8 +749,8 @@ class FileEmbedWidget extends WidgetType {
     const iconEl = document.createElement('span')
     iconEl.style.cssText = 'font-size:16px;line-height:1;flex-shrink:0'
     iconEl.textContent =
-      this.type === 'pdf'   ? '📄' :
-      this.type === 'video' ? '🎬' : '📎'
+      this.type === 'pdf' ? '📄' :
+        this.type === 'video' ? '🎬' : '📎'
 
     const nameEl = document.createElement('span')
     nameEl.style.cssText = [
@@ -859,9 +925,9 @@ class FileEmbedWidget extends WidgetType {
           const ext = this.relativePath.split('.').pop()?.toLowerCase() ?? 'mp4'
           const videoMime =
             ext === 'webm' ? 'video/webm' :
-            ext === 'mov'  ? 'video/quicktime' :
-            ext === 'avi'  ? 'video/x-msvideo' :
-            'video/mp4'
+              ext === 'mov' ? 'video/quicktime' :
+                ext === 'avi' ? 'video/x-msvideo' :
+                  'video/mp4'
           resolveUrl(videoMime)
             .then(url => { video.src = url })
             .catch(() => {
@@ -927,7 +993,7 @@ class FileEmbedWidget extends WidgetType {
 function buildFileEmbedDecorations(
   view: EditorView,
   vaultPath: string,
-  onRemove: (relativePath: string) => void = () => {},
+  onRemove: (relativePath: string) => void = () => { },
   searchRoot?: string,
 ): DecorationSet {
   const widgets: Range<Decoration>[] = []
@@ -939,17 +1005,17 @@ function buildFileEmbedDecorations(
     let m: RegExpExecArray | null
     while ((m = FILE_EMBED_RE.exec(text)) !== null) {
       const matchFrom = from + m.index
-      const matchTo   = matchFrom + m[0].length
+      const matchTo = matchFrom + m[0].length
 
       const relativePath = m[1]                             // e.g. "attachments/doc.pdf"
-      const namePart      = m[2] ?? ''                      // display name
-      const sizePart      = m[3] ?? '0'                     // size in bytes
+      const namePart = m[2] ?? ''                      // display name
+      const sizePart = m[3] ?? '0'                     // size in bytes
 
-      const ext         = relativePath.split('.').pop()?.toLowerCase() ?? ''
-      const type        = embedFileType(ext)
+      const ext = relativePath.split('.').pop()?.toLowerCase() ?? ''
+      const type = embedFileType(ext)
       const displayName = namePart || relativePath.split('/').pop() || relativePath
-      const sizeBytes   = parseInt(sizePart) || 0
-      const fullPath    = vaultPath ? `${vaultPath}/${relativePath}` : relativePath
+      const sizeBytes = parseInt(sizePart) || 0
+      const fullPath = vaultPath ? `${vaultPath}/${relativePath}` : relativePath
 
       widgets.push(
         Decoration.replace({
@@ -966,7 +1032,7 @@ function buildFileEmbedDecorations(
 /** Factory — call once per EditorState with the current vaultPath. */
 export function createFileEmbedPlugin(
   vaultPath: string,
-  onRemove: (relativePath: string) => void = () => {},
+  onRemove: (relativePath: string) => void = () => { },
   searchRoot?: string,
 ) {
   return ViewPlugin.fromClass(

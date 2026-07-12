@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
-import { Settings, X, Palette, Sun, Moon, Type, Folder, FolderOpen, Info, ChevronRight, Check, Plus, Pencil, Trash2, GitBranch, Eye, EyeOff, ExternalLink, Sparkles, Keyboard, RotateCcw, AlertTriangle } from 'lucide-react'
-import { useAppStore } from '../../store/useAppStore'
+import { Settings, X, Palette, Sun, Moon, Type, Folder, FolderOpen, Info, ChevronRight, Check, Plus, Pencil, Trash2, GitBranch, Eye, EyeOff, ExternalLink, Sparkles, Keyboard, RotateCcw, AlertTriangle, List } from 'lucide-react'
+import { useAppStore, type Abbreviation } from '../../store/useAppStore'
 import { cn } from '../../lib/utils'
 import { THEMES, DARK_THEMES, LIGHT_THEMES, type CustomTheme } from '../../lib/themes'
 import { ThemeEditor } from './ThemeEditor'
@@ -16,7 +16,7 @@ import { SHORTCUT_DEFS, formatCombo, hasModifier, eventToCombo } from '../../lib
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type Section = 'themes' | 'appearance' | 'editor' | 'features' | 'shortcuts' | 'vault' | 'github' | 'about'
+type Section = 'themes' | 'appearance' | 'editor' | 'features' | 'shortcuts' | 'abbreviations' | 'vault' | 'github' | 'about'
 
 // ─── Font options ─────────────────────────────────────────────────────────────
 
@@ -50,6 +50,7 @@ const NAV_ITEMS: Array<{ id: Section; label: string; icon: React.FC<{ className?
   { id: 'editor', label: 'Editor', icon: Type },
   { id: 'features', label: 'Features', icon: Sparkles },
   { id: 'shortcuts', label: 'Shortcuts', icon: Keyboard },
+  { id: 'abbreviations', label: 'Abbreviations', icon: List },
   { id: 'vault', label: 'Vaults', icon: Folder },
   { id: 'github', label: 'GitHub', icon: GitBranch },
   { id: 'about', label: 'About', icon: Info },
@@ -452,6 +453,9 @@ export function SettingsDialog() {
               {/* ── Shortcuts ── */}
               {section === 'shortcuts' && <ShortcutsSection />}
 
+              {/* ── Abbreviations ── */}
+              {section === 'abbreviations' && <AbbreviationsSection />}
+
               {/* ── Vaults ── */}
               {section === 'vault' && (
                 <VaultSection onClose={() => setOpen(false)} />
@@ -682,6 +686,135 @@ function ShortcutsSection() {
 
       {recordingId && !error && (
         <p className="text-[10px] text-tertiary pt-1">Press a key combination, or Escape to cancel.</p>
+      )}
+    </div>
+  )
+}
+
+// ─── AbbreviationsSection ────────────────────────────────────────────────────
+
+const TRIGGER_OPTIONS = [':', '!', ';', '#', '$', '%', '^', '~', '|']
+
+function AbbreviationsSection() {
+  const { abbreviationTrigger, setAbbreviationTrigger, abbreviations, setAbbreviations } = useAppStore()
+  const [triggerDraft, setTriggerDraft] = useState(abbreviationTrigger)
+  const [items, setItems] = useState<Abbreviation[]>(abbreviations)
+  const [newKey, setNewKey] = useState('')
+  const [newValue, setNewValue] = useState('')
+
+  const triggerDirty = triggerDraft !== abbreviationTrigger
+  const itemsDirty = JSON.stringify(items) !== JSON.stringify(abbreviations)
+  const dirty = triggerDirty || itemsDirty
+
+  const add = () => {
+    const k = newKey.trim().toLowerCase()
+    if (!k || items.some(i => i.key === k)) return
+    setItems([...items, { key: k, value: newValue.trim() }])
+    setNewKey('')
+    setNewValue('')
+  }
+
+  const remove = (key: string) => setItems(items.filter(i => i.key !== key))
+
+  const save = () => {
+    setAbbreviationTrigger(triggerDraft)
+    setAbbreviations(items)
+  }
+
+  const resetLocal = () => {
+    setTriggerDraft(abbreviationTrigger)
+    setItems(abbreviations)
+  }
+
+  return (
+    <div className="space-y-5">
+      <SettingRow
+        label="Trigger character"
+        description="The prefix that activates abbreviation completion"
+      >
+        <select
+          value={triggerDraft}
+          onChange={e => setTriggerDraft(e.target.value)}
+          className="text-xs bg-surface border border-border rounded-md px-2 py-1.5 text-foreground focus:outline-none focus:ring-1 focus:ring-accent"
+        >
+          {TRIGGER_OPTIONS.map(c => (
+            <option key={c} value={c}>{c}</option>
+          ))}
+        </select>
+      </SettingRow>
+
+      <div>
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-tertiary mb-2">Built-in</p>
+        <div className="rounded-lg border border-border divide-y divide-border overflow-hidden text-xs">
+          {['today', 'tomorrow', 'nextweek', 'nextmonth', 'now'].map(k => (
+            <div key={k} className="flex items-center gap-3 px-3 py-2">
+              <span className="font-mono text-foreground">{abbreviationTrigger}{k}</span>
+              <span className="text-tertiary">→</span>
+              <span className="text-muted-foreground">{k === 'now' ? 'HH:MM' : 'YYYY-MM-DD'}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <div className="flex items-center justify-between mb-2">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-tertiary">Custom</p>
+        </div>
+
+        {items.length === 0 ? (
+          <p className="text-xs text-muted-foreground py-4 text-center">No custom abbreviations yet.</p>
+        ) : (
+          <div className="rounded-lg border border-border divide-y divide-border overflow-hidden text-xs mb-3">
+            {items.map(i => (
+              <div key={i.key} className="flex items-center gap-2 px-3 py-2 group">
+                <span className="font-mono text-foreground min-w-[60px]">{abbreviationTrigger}{i.key}</span>
+                <span className="text-tertiary">→</span>
+                <span className="text-muted-foreground flex-1 truncate">{i.value}</span>
+                <button onClick={() => remove(i.key)} className="text-muted-foreground hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all p-0.5 rounded">
+                  <Trash2 className="w-3 h-3" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className="flex items-center gap-2">
+          <input
+            type="text"
+            value={newKey}
+            onChange={e => setNewKey(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && add()}
+            placeholder="e.g. eod"
+            className="flex-1 max-w-[120px] px-2.5 py-1.5 rounded-md text-xs bg-surface border border-border text-foreground placeholder:text-tertiary focus:outline-none focus:border-accent/50 transition-colors font-mono"
+          />
+          <input
+            type="text"
+            value={newValue}
+            onChange={e => setNewValue(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && add()}
+            placeholder="end of day"
+            className="flex-1 px-2.5 py-1.5 rounded-md text-xs bg-surface border border-border text-foreground placeholder:text-tertiary focus:outline-none focus:border-accent/50 transition-colors"
+          />
+          <button
+            onClick={add}
+            disabled={!newKey.trim()}
+            className="flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs font-medium text-accent hover:opacity-80 transition-opacity disabled:opacity-30 disabled:pointer-events-none"
+          >
+            <Plus className="w-3 h-3" />
+            Add
+          </button>
+        </div>
+      </div>
+
+      {dirty && (
+        <div className="flex items-center gap-2 pt-2 border-t border-border">
+          <button onClick={save} className="px-3 py-1.5 rounded-lg text-xs font-medium bg-accent text-white hover:opacity-90 transition-opacity">
+            Save
+          </button>
+          <button onClick={resetLocal} className="px-3 py-1.5 rounded-lg text-xs font-medium border border-border text-muted-foreground hover:text-foreground transition-colors">
+            Reset
+          </button>
+        </div>
       )}
     </div>
   )

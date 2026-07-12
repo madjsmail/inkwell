@@ -144,6 +144,11 @@ export interface NamePromptConfig {
   onConfirm: (name: string) => void;
 }
 
+export interface Abbreviation {
+  key: string
+  value: string
+}
+
 export interface ConfirmConfig {
   title: string;
   description: string;
@@ -201,6 +206,10 @@ interface AppState {
   setCanvasLinkedVaultPath: (path: string | null) => void;
   plannerEnabled: boolean;
   setPlannerEnabled: (enabled: boolean) => void;
+  abbreviationTrigger: string;
+  abbreviations: Abbreviation[];
+  setAbbreviationTrigger: (trigger: string) => void;
+  setAbbreviations: (abbrevs: Abbreviation[]) => void;
   searchOpen: boolean;
   searchQuery: string;
   activeTaskId: string | null;
@@ -558,6 +567,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   canvasEnabled: localStorage.getItem("inkwell-canvas-enabled") === "true",
   canvasLinkedVaultPath: localStorage.getItem("inkwell-canvas-linked-vault"),
   plannerEnabled: localStorage.getItem("inkwell-planner-enabled") !== "false",
+  abbreviationTrigger: localStorage.getItem("inkwell-abbrev-trigger") ?? ":",
+  abbreviations: JSON.parse(localStorage.getItem("inkwell-abbreviations") ?? "[]"),
   searchOpen: false,
   searchQuery: "",
   activeTaskId: null,
@@ -888,6 +899,16 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (!enabled && get().activeView === "planner") {
       set({ activeView: "notes" });
     }
+  },
+
+  setAbbreviationTrigger: (trigger) => {
+    localStorage.setItem("inkwell-abbrev-trigger", trigger);
+    set({ abbreviationTrigger: trigger });
+  },
+
+  setAbbreviations: (abbrevs) => {
+    localStorage.setItem("inkwell-abbreviations", JSON.stringify(abbrevs));
+    set({ abbreviations: abbrevs });
   },
 
   setSearchOpen: (open) => set({ searchOpen: open }),

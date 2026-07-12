@@ -8,6 +8,7 @@ import {
   slashCommandCompletion,
   highlightMarkPlugin,
   tablePlugin,
+  autocompleteTheme,
 } from '../../lib/editorExtensions'
 
 export interface QuickNoteEditorHandle {
@@ -110,6 +111,7 @@ export const QuickNoteEditor = forwardRef<QuickNoteEditorHandle, QuickNoteEditor
           highlightMarkPlugin,
           tablePlugin,
           slashCommandCompletion,
+          autocompleteTheme,
           placeholder('Quick note… (Markdown supported)'),
           EditorView.lineWrapping,
           theme,
