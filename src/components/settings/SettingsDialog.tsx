@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
-import { Settings, X, Palette, Sun, Moon, Type, Folder, FolderOpen, Info, ChevronRight, Check, Plus, Pencil, Trash2, GitBranch, Eye, EyeOff, ExternalLink, Sparkles, Keyboard, RotateCcw, AlertTriangle, List } from 'lucide-react'
+import { Settings, X, Palette, Sun, Moon, Type, Folder, FolderOpen, Info, ChevronRight, Check, Plus, Pencil, Trash2, GitBranch, Eye, EyeOff, ExternalLink, Sparkles, Keyboard, RotateCcw, AlertTriangle, List, PencilIcon } from 'lucide-react'
 import { useAppStore, type Abbreviation } from '../../store/useAppStore'
 import { cn } from '../../lib/utils'
 import { THEMES, DARK_THEMES, LIGHT_THEMES, type CustomTheme } from '../../lib/themes'
@@ -701,6 +701,8 @@ function AbbreviationsSection() {
   const [items, setItems] = useState<Abbreviation[]>(abbreviations)
   const [newKey, setNewKey] = useState('')
   const [newValue, setNewValue] = useState('')
+  const [editingKey, setEditingKey] = useState<string | null>(null)
+  const [showAdd, setShowAdd] = useState(false)
 
   const triggerDirty = triggerDraft !== abbreviationTrigger
   const itemsDirty = JSON.stringify(items) !== JSON.stringify(abbreviations)
@@ -712,9 +714,40 @@ function AbbreviationsSection() {
     setItems([...items, { key: k, value: newValue.trim() }])
     setNewKey('')
     setNewValue('')
+    setEditingKey(null)
   }
 
-  const remove = (key: string) => setItems(items.filter(i => i.key !== key))
+  const cancelEdit = () => {
+    setEditingKey(null)
+    setNewKey('')
+    setNewValue('')
+    setShowAdd(false)
+  }
+
+  const remove = (key: string) => {
+    setItems(items.filter(i => i.key !== key))
+    if (editingKey === key) setEditingKey(null)
+    setShowAdd(false)
+  }
+
+  const edit = (key: string) => {
+    const item = items.find(i => i.key === key)
+    if (!item) return
+    setEditingKey(key)
+    setNewKey(item.key)
+    setNewValue(item.value)
+    setShowAdd(true)
+  }
+
+  const submitEdit = () => {
+    if (!editingKey) return
+    const k = newKey.trim().toLowerCase()
+    if (!k) return
+    setItems(items.map(i => i.key === editingKey ? { key: k, value: newValue.trim() } : i))
+    setEditingKey(null)
+    setNewKey('')
+    setNewValue('')
+  }
 
   const save = () => {
     setAbbreviationTrigger(triggerDraft)
@@ -770,6 +803,10 @@ function AbbreviationsSection() {
                 <span className="font-mono text-foreground min-w-[60px]">{abbreviationTrigger}{i.key}</span>
                 <span className="text-tertiary">→</span>
                 <span className="text-muted-foreground flex-1 truncate">{i.value}</span>
+                <button onClick={() => edit(i.key)} className="text-muted-foreground hover:text-blue-400 opacity-0 group-hover:opacity-100 transition-all p-0.5 rounded">
+                  <PencilIcon className="w-3 h-3" />
+                </button>
+
                 <button onClick={() => remove(i.key)} className="text-muted-foreground hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all p-0.5 rounded">
                   <Trash2 className="w-3 h-3" />
                 </button>
@@ -778,32 +815,55 @@ function AbbreviationsSection() {
           </div>
         )}
 
-        <div className="flex items-center gap-2">
-          <input
-            type="text"
-            value={newKey}
-            onChange={e => setNewKey(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && add()}
-            placeholder="e.g. eod"
-            className="flex-1 max-w-[120px] px-2.5 py-1.5 rounded-md text-xs bg-surface border border-border text-foreground placeholder:text-tertiary focus:outline-none focus:border-accent/50 transition-colors font-mono"
-          />
-          <input
-            type="text"
-            value={newValue}
-            onChange={e => setNewValue(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && add()}
-            placeholder="end of day"
-            className="flex-1 px-2.5 py-1.5 rounded-md text-xs bg-surface border border-border text-foreground placeholder:text-tertiary focus:outline-none focus:border-accent/50 transition-colors"
-          />
+        {showAdd && (
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              value={newKey}
+              onChange={e => setNewKey(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Enter') editingKey ? submitEdit() : add()
+                if (e.key === 'Escape') cancelEdit()
+              }}
+              placeholder="e.g. eod"
+              className="flex-1 max-w-[120px] px-2.5 py-1.5 rounded-md text-xs bg-surface border border-border text-foreground placeholder:text-tertiary focus:outline-none focus:border-accent/50 transition-colors font-mono"
+            />
+            <input
+              type="text"
+              value={newValue}
+              onChange={e => setNewValue(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Enter') editingKey ? submitEdit() : add()
+                if (e.key === 'Escape') cancelEdit()
+              }}
+              placeholder="end of day"
+              className="flex-1 px-2.5 py-1.5 rounded-md text-xs bg-surface border border-border text-foreground placeholder:text-tertiary focus:outline-none focus:border-accent/50 transition-colors"
+              autoFocus
+            />
+            <button
+              onClick={editingKey ? submitEdit : add}
+              disabled={!editingKey && !newKey.trim()}
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs font-medium text-accent hover:opacity-80 transition-opacity disabled:opacity-30 disabled:pointer-events-none"
+            >
+              {editingKey ? 'Update' : <><Plus className="w-3 h-3" /> Add</>}
+            </button>
+            <button
+              onClick={cancelEdit}
+              className="px-2.5 py-1.5 rounded-md text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        )}
+
+        {!showAdd && (
           <button
-            onClick={add}
-            disabled={!newKey.trim()}
-            className="flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs font-medium text-accent hover:opacity-80 transition-opacity disabled:opacity-30 disabled:pointer-events-none"
+            onClick={() => setShowAdd(true)}
+            className="flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
           >
-            <Plus className="w-3 h-3" />
-            Add
+            <Plus className="w-3 h-3" /> Add abbreviation
           </button>
-        </div>
+        )}
       </div>
 
       {dirty && (
